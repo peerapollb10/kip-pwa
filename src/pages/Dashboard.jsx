@@ -1,7 +1,7 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useKip } from '../context/KipContext.jsx';
-import { GridCard, ListRow } from '../components/ItemCard.jsx';
+import { GridCard } from '../components/ItemCard.jsx';
 import ItemDetail from '../components/ItemDetail.jsx';
 import SaveSheet from '../components/SaveSheet.jsx';
 import { EmptyState } from '../components/ui.jsx';
@@ -10,13 +10,12 @@ import { FREE_ITEM_LIMIT } from '../lib/pricing.js';
 const isEditable = (el) => el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
 
 export default function Dashboard() {
-  const { items, categories, profile, loading, migrating, error, refresh, isGuest, isPro, patchItem, saveProfile } = useKip();
+  const { items, categories, loading, migrating, error, refresh, isGuest, isPro, patchItem } = useKip();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all'); // 'all' | 'fav' | 'inbox' | categoryId
   const [openId, setOpenId] = useState(null);
   const [composer, setComposer] = useState(null); // null = closed, {} = open
   const [dragging, setDragging] = useState(false);
-  const view = profile?.view_mode || 'grid';
   const q = useDeferredValue(query.trim().toLowerCase());
 
   const catMap = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories]);
@@ -76,22 +75,19 @@ export default function Dashboard() {
           </Link>
           <div className="relative ml-2 flex-1">
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">⌕</span>
-            <input className="input pl-8" type="search" placeholder="ค้นหาลิงก์ โน้ต รูป..." value={query} onChange={(e) => setQuery(e.target.value)} />
+            <input className="input pl-8" type="search" placeholder="ค้นหา" value={query} onChange={(e) => setQuery(e.target.value)} />
           </div>
-          <div className="flex rounded-xl bg-slate-200/60 p-0.5 dark:bg-white/10" role="group" aria-label="มุมมอง">
-            {[['grid', '▦', 'Masonry'], ['list', '☰', 'List']].map(([v, icon, label]) => (
-              <button
-                key={v}
-                aria-label={label}
-                aria-pressed={view === v}
-                onClick={() => saveProfile({ view_mode: v }).catch(() => {})}
-                className={`rounded-lg px-2.5 py-1.5 text-sm ${view === v ? 'bg-white shadow dark:bg-white/20' : 'text-slate-500'}`}
-              >
-                {icon}
-              </button>
-            ))}
-          </div>
-          <Link to="/settings" className="btn-ghost px-2.5" aria-label="ตั้งค่า">⚙︎</Link>
+          <Link
+            to="/settings"
+            aria-label="ตั้งค่า"
+            title="ตั้งค่า"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 transition hover:bg-brand-100 active:scale-95 dark:bg-brand-500/15 dark:text-brand-100 dark:hover:bg-brand-500/25"
+          >
+            <svg viewBox="0 0 24 24" className="h-[22px] w-[22px]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </Link>
         </div>
 
         {/* Category filter */}
@@ -151,16 +147,10 @@ export default function Dashboard() {
           </EmptyState>
         ) : !visible.length ? (
           <EmptyState icon="🔍" title="ไม่พบรายการ">ลองค้นหาด้วยคำอื่น หรือเปลี่ยนหมวดหมู่</EmptyState>
-        ) : view === 'grid' ? (
+        ) : (
           <div className="columns-2 gap-3 sm:columns-3 lg:columns-4">
             {visible.map((item) => (
               <GridCard key={item.id} item={item} category={catMap[item.category_id]} onOpen={() => setOpenId(item.id)} onToggleFavorite={() => patchItem(item.id, { is_favorite: !item.is_favorite })} />
-            ))}
-          </div>
-        ) : (
-          <div className="card px-3">
-            {visible.map((item) => (
-              <ListRow key={item.id} item={item} category={catMap[item.category_id]} onOpen={() => setOpenId(item.id)} onToggleFavorite={() => patchItem(item.id, { is_favorite: !item.is_favorite })} />
             ))}
           </div>
         )}
