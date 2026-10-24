@@ -30,7 +30,7 @@ async function readSharedPayload(params) {
 export default function Share() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const { profile, isPro, defaultCategory, saveItem, showToast } = useKip();
+  const { profile, isPro, saveItem, showToast } = useKip();
   const [payload, setPayload] = useState(null);
   const [quickSaving, setQuickSaving] = useState(false);
   const handled = useRef(false);
@@ -43,16 +43,16 @@ export default function Share() {
       const shared = await readSharedPayload(params);
       if (!shared.file && !shared.text && !shared.url) return navigate('/', { replace: true });
 
-      // Quick Mode (Pro only): skip the category sheet, save straight into 'ทั่วไป'.
-      if (isPro && profile.quick_mode && defaultCategory) {
+      // Quick Mode (Pro only): skip the category sheet, save without a category (category_id null).
+      if (isPro && profile.quick_mode) {
         setQuickSaving(true);
         try {
           const draft = shared.file
             ? { type: 'image', file: shared.file, title: shared.title, note: shared.text || null }
             : draftFromShare(shared);
           if (draft.url) Object.assign(draft, await fetchMetadata(draft.url), shared.title ? { title: shared.title } : {});
-          await saveItem(draft, defaultCategory.id);
-          showToast(`เซฟเข้า “${defaultCategory.name}” แล้ว ✓`);
+          await saveItem(draft, null);
+          showToast('เซฟแล้ว ✓');
         } catch (e) {
           if (e.code !== 'FREE_LIMIT_REACHED') showToast('เซฟไม่สำเร็จ', 'error');
         }
@@ -60,13 +60,13 @@ export default function Share() {
       }
       setPayload(shared);
     })();
-  }, [profile, isPro, defaultCategory, params, navigate, saveItem, showToast]);
+  }, [profile, isPro, params, navigate, saveItem, showToast]);
 
   if (!payload || quickSaving) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 text-sm text-slate-500">
         <Spinner />
-        {quickSaving ? `กำลังเซฟเข้า “${defaultCategory?.name ?? 'ทั่วไป'}”...` : 'กำลังเตรียมข้อมูล...'}
+        {quickSaving ? 'กำลังเซฟ...' : 'กำลังเตรียมข้อมูล...'}
       </div>
     );
   }

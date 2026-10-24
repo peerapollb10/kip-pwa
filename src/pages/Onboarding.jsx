@@ -10,12 +10,12 @@ const SLIDES = {
   ios: [
     { media: 'ios-install', demo: '📲', title: 'เพิ่ม Kip ลงหน้าจอโฮม', steps: ['เปิด Kip ใน Safari', 'แตะปุ่มแชร์ (สี่เหลี่ยมลูกศรขึ้น)', 'เลือก “เพิ่มไปยังหน้าจอโฮม”'] },
     { media: 'ios-share', demo: '⤴️', title: 'เพิ่ม Kip ใน Share Sheet', steps: ['ติดตั้งคำสั่งลัด “Save to Kip” จากปุ่มด้านล่าง', 'ในแอปใดก็ได้ แตะแชร์ → เลือก “Save to Kip”', 'ปักหมุดไว้แถวบนสุดเพื่อกดได้ใน 1 คลิก'], cta: { label: 'ติดตั้งคำสั่งลัด Save to Kip', href: IOS_SHORTCUT_URL } },
-    { media: 'save', demo: '🗂️', title: 'เลือกหมวดหมู่ตอนเซฟ', steps: ['Kip จะเด้ง Bottom Sheet ให้เลือกหมวด', 'ผู้ใช้ Pro เปิด Quick Mode ให้เซฟเข้าหมวด “ทั่วไป” อัตโนมัติได้'] },
+    { media: 'save', demo: '🗂️', title: 'เลือกหมวดหมู่ตอนเซฟ', steps: ['Kip จะเด้ง Bottom Sheet ให้เลือกหมวด (หรือกด + สร้างหมวดใหม่ได้ทันที)', 'ผู้ใช้ Pro เปิด Quick Mode ให้เซฟทันทีโดยไม่ต้องเลือกหมวดได้'] },
   ],
   android: [
     { media: 'android-install', demo: '📲', title: 'ติดตั้ง Kip ลงหน้าจอหลัก', steps: ['แตะปุ่ม “ติดตั้ง” ด้านบน', 'หรือเมนู ⋮ ใน Chrome → “ติดตั้งแอป”'] },
     { media: 'android-share', demo: '⤴️', title: 'แชร์จากแอปไหนก็ได้', steps: ['ใน YouTube / Facebook / Chrome แตะ “แชร์”', 'เลือกไอคอน Kip ใน Share Sheet', 'กดค้างเพื่อปักหมุด Kip ไว้ด้านบน'] },
-    { media: 'save', demo: '🗂️', title: 'เลือกหมวดหมู่ตอนเซฟ', steps: ['Kip จะเด้ง Bottom Sheet ให้เลือกหมวด', 'ผู้ใช้ Pro เปิด Quick Mode ให้เซฟเข้าหมวด “ทั่วไป” อัตโนมัติได้'] },
+    { media: 'save', demo: '🗂️', title: 'เลือกหมวดหมู่ตอนเซฟ', steps: ['Kip จะเด้ง Bottom Sheet ให้เลือกหมวด (หรือกด + สร้างหมวดใหม่ได้ทันที)', 'ผู้ใช้ Pro เปิด Quick Mode ให้เซฟทันทีโดยไม่ต้องเลือกหมวดได้'] },
   ],
   desktop: [
     { media: 'desktop-install', demo: '💻', title: 'ติดตั้ง Kip เป็น Desktop App', steps: ['คลิกไอคอน ⊕ ที่แถบที่อยู่ของ Chrome / Edge', 'หรือกดปุ่ม “ติดตั้ง” ด้านบน', 'Kip จะเปิดเป็นหน้าต่างแยกเหมือนแอปทั่วไป'] },

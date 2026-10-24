@@ -3,12 +3,13 @@ import { Sheet, Spinner, TypeBadge } from './ui.jsx';
 import { useKip } from '../context/KipContext.jsx';
 import { fetchMetadata } from '../lib/api.js';
 import { draftFromShare, hostnameOf } from '../lib/content.js';
-import { FREE_ITEM_LIMIT } from '../lib/pricing.js';
+import { FREE_ITEM_LIMIT, showItemCount } from '../lib/pricing.js';
+import CategoryPicker from './CategoryPicker.jsx';
 
 // Bottom sheet for saving: pick a category at save time.
 // `initial` may contain {title, text, url, file}; if empty, it acts as a composer.
 export default function SaveSheet({ open, initial, onClose, onSaved }) {
-  const { categories, saveItem, isPro, items, showToast } = useKip();
+  const { saveItem, isPro, items, showToast } = useKip();
   const [raw, setRaw] = useState('');
   const [file, setFile] = useState(null);
   const [meta, setMeta] = useState(null);
@@ -94,7 +95,7 @@ export default function SaveSheet({ open, initial, onClose, onSaved }) {
       title="เซฟเข้า Kip"
       footer={
         <div className="flex items-center gap-3">
-          {!isPro && (
+          {!isPro && showItemCount(items.length) && (
             <span className="text-xs text-slate-500">
               เหลือ {Math.max(0, remaining)}/{FREE_ITEM_LIMIT} รายการ
             </span>
@@ -154,18 +155,9 @@ export default function SaveSheet({ open, initial, onClose, onSaved }) {
         <textarea className="input mb-3 min-h-[60px] resize-none" placeholder="เพิ่มโน้ต (ไม่บังคับ)" value={note} onChange={(e) => setNote(e.target.value)} />
       )}
 
-      {/* Category picker */}
+      {/* Category picker (optional — none selected = category_id null) */}
       <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">เลือกหมวดหมู่</p>
-      <div className="flex flex-wrap gap-2">
-        <button className={categoryId === null ? 'chip-on' : 'chip-off'} onClick={() => setCategoryId(null)}>
-          📥 Inbox
-        </button>
-        {categories.map((c) => (
-          <button key={c.id} className={categoryId === c.id ? 'chip-on' : 'chip-off'} onClick={() => setCategoryId(c.id)}>
-            {c.emoji} {c.name}
-          </button>
-        ))}
-      </div>
+      <CategoryPicker value={categoryId} onChange={setCategoryId} />
     </Sheet>
   );
 }

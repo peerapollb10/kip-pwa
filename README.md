@@ -5,7 +5,7 @@ React (Vite) + Tailwind · Supabase (DB/Auth/Storage/Edge Functions) · Stripe (
 ## Setup
 1. `npm install`
 2. Supabase
-   - รัน `supabase/migrations/0001_init.sql` แล้ว `0002_spec_alignment.sql` ใน SQL Editor (หรือ `supabase db push`)
+   - รัน `supabase/migrations/0001_init.sql` → `0002_spec_alignment.sql` → `0003_no_default_categories.sql` ใน SQL Editor (หรือ `supabase db push`)
    - Auth → เปิด Google provider, ตั้ง Site URL / Redirect URLs เป็นโดเมน Vercel (รวม `/**`)
    - Edge Function: `supabase functions deploy og-metadata` (ดึง OG metadata แทน browser เพื่อเลี่ยง CORS)
    - ตั้ง admin: `update profiles set role = 'admin' where email = 'you@gmail.com';`
@@ -27,7 +27,11 @@ React (Vite) + Tailwind · Supabase (DB/Auth/Storage/Edge Functions) · Stripe (
 - **LINE**: ไม่ใช่ provider ในตัวของ Supabase → `/api/auth/line` + `/api/auth/line-callback` ยืนยัน id_token กับ LINE แล้วสร้าง/หา user ด้วย service role และส่ง magic link เข้าสู่ระบบ ถ้า LINE ไม่ให้อีเมลจะใช้ `line_<userId>@line.kip.invalid`
 - **Pro** = `profiles.subscription_tier = 'pro'` และ (`pro_until` เป็น null = Lifetime หรือยังไม่หมดอายุ)
 - Free = 50 รายการ บังคับที่ DB trigger (`enforce_item_limit`) — ข้อมูลเดิมไม่ถูกลบ
-- Quick Mode (Pro): ข้ามหน้าเลือกหมวด เซฟเข้าหมวด `is_default` (“ทั่วไป”) ซึ่งลบไม่ได้
+- หมวดหมู่: ไม่มีหมวดเริ่มต้นและไม่มี Inbox — ผู้ใช้สร้างเอง (Settings หรือปุ่ม ＋ ตอนเซฟ/ในการ์ด), ไม่เลือกหมวด = `category_id` null · แถบกรองหมวดซ่อนจนกว่าจะมีหมวดแรก
+- Quick Mode (Pro): ข้ามหน้าเลือกหมวด เซฟแบบไม่มีหมวด (null)
+- ประเภท: `link` (Web Link), `youtube`, `facebook`, `instagram`, `tiktok`, `document`, `image`, `text` (โน้ต) — Filter ประเภทเลือกได้หลายอัน
+- ธีม: Light เป็นค่าเริ่มต้น สลับ Dark ได้ใน Settings (`localStorage` `kip.theme`, Tailwind `darkMode: 'class'`)
+- แถบจำนวนรายการ x/50 แสดงเฉพาะเมื่อ > 40 รายการ (`ITEM_COUNT_THRESHOLD`)
 - Admin: `/admin` — ค้นหา user (email/ID), Manual Override (Pro/Free + 1 เดือน/1 ปี/Lifetime + note), สถิติ (ผู้ใช้, Pro, ยอดขายจากตาราง `payments`, Storage)
 - Tier counter = จำนวนแถว `subscriptions` ที่มี `slot_number` (แถวที่ admin ให้ฟรีไม่นับ); `locked_price` + `tier` ใช้ล็อกราคาตอนต่ออายุ
 - iOS ไม่รองรับ Web Share Target → ใช้ iOS Shortcut ส่งไปที่ `/share?url=...` (GET) แทน · Android/desktop: manifest `share_target` POST → `/share` (service worker รับ)

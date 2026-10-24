@@ -42,10 +42,11 @@ export function GridCard({ item, category, onOpen, onToggleFavorite }) {
         {item.type === 'text' && item.note && item.note !== titleOf(item) && (
           <p className="mt-1 line-clamp-4 whitespace-pre-line text-xs text-slate-500 dark:text-slate-400">{item.note}</p>
         )}
-        <p className="mt-2 truncate text-[11px] text-slate-400">
-          {category ? `${category.emoji ?? ''} ${category.name}` : '📥 Inbox'}
-          {item.content_url && ` · ${hostnameOf(item.content_url)}`}
-        </p>
+        {(category || item.content_url) && (
+          <p className="mt-2 truncate text-[11px] text-slate-400">
+            {[category && `${category.emoji ?? ''} ${category.name}`.trim(), item.content_url && hostnameOf(item.content_url)].filter(Boolean).join(' · ')}
+          </p>
+        )}
       </div>
     </article>
   );
@@ -61,8 +62,7 @@ export function ListRow({ item, category, onOpen, onToggleFavorite }) {
       <div className="min-w-0 flex-1">
         <h3 className="truncate text-sm font-medium">{titleOf(item)}</h3>
         <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-          {category ? category.name : 'Inbox'}
-          {item.content_url && ` · ${hostnameOf(item.content_url)}`}
+          {[category?.name, item.content_url && hostnameOf(item.content_url)].filter(Boolean).join(' · ')}
         </p>
       </div>
       <Star on={item.is_favorite} onClick={onToggleFavorite} />

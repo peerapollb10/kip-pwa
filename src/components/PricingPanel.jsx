@@ -107,7 +107,7 @@ export default function PricingPanel({ compact = false }) {
 
         <ul className="mt-4 space-y-2 text-sm">
           <li>✓ เซฟได้ไม่จำกัด</li>
-          <li>✓ Quick Mode — แชร์ปุ๊บเข้าหมวด “ทั่วไป” ทันที</li>
+          <li>✓ Quick Mode — แชร์ปุ๊บเซฟทันที ไม่ต้องเลือกหมวด</li>
           <li>✓ ทุกฟีเจอร์ของแพ็กเกจฟรี</li>
         </ul>
 

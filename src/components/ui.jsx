@@ -74,7 +74,10 @@ export function TypeBadge({ type }) {
     facebook: ['f', 'Facebook', 'bg-blue-600'],
     image: ['🖼', 'รูปภาพ', 'bg-emerald-500'],
     text: ['✎', 'โน้ต', 'bg-amber-500'],
-    link: ['🔗', 'ลิงก์', 'bg-slate-500'],
+    link: ['🔗', 'Web Link', 'bg-slate-500'],
+    instagram: ['◎', 'Instagram', 'bg-pink-500'],
+    tiktok: ['♪', 'TikTok', 'bg-slate-900'],
+    document: ['📄', 'Document', 'bg-sky-600'],
   };
   const [icon, label, color] = map[type] || map.link;
   return (

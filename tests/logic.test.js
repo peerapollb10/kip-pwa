@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getPricingStatus, resolveCheckoutPrice, isPro } from '../src/lib/pricing.js';
+import { getPricingStatus, resolveCheckoutPrice, isPro, showItemCount } from '../src/lib/pricing.js';
 import { detectPlatform } from '../src/lib/device.js';
-import { draftFromShare, getYouTubeId, detectType } from '../src/lib/content.js';
-import { loadGuest, saveGuest, clearGuest, hasGuestData, newGuestItem } from '../src/lib/guestStore.js';
+import { draftFromShare, getYouTubeId, detectType, ITEM_TYPES } from '../src/lib/content.js';
+import { loadGuest, saveGuest, clearGuest, hasGuestData, newGuestItem, newGuestCategory } from '../src/lib/guestStore.js';
+import { getTheme } from '../src/lib/theme.js';
 import { safePath, emailForLine } from '../api/_lib/line.js';
 
 test('tier boundaries', () => {
@@ -49,17 +50,40 @@ function memoryStorage() {
   return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
 }
 
-test('guest store: seeds defaults incl. ทั่วไป, detects real data', () => {
+test('guest store: no default categories, uncategorised = null, detects real data', () => {
   const s = memoryStorage();
   const g = loadGuest(s);
-  assert.equal(g.categories.filter((c) => c.is_default).length, 1);
-  assert.equal(g.categories.find((c) => c.is_default).name, 'ทั่วไป');
+  assert.deepEqual(g.categories, []);
   assert.equal(hasGuestData(s), false);
-  saveGuest({ ...g, items: [newGuestItem({ type: 'link', url: 'https://a.co' }, g.categories[0].id)] }, s);
+  saveGuest({ ...g, items: [newGuestItem({ type: 'link', url: 'https://a.co' }, null)] }, s);
   assert.equal(hasGuestData(s), true);
   assert.equal(loadGuest(s).items[0].content_url, 'https://a.co');
+  assert.equal(loadGuest(s).items[0].category_id, null);
   clearGuest(s);
   assert.equal(hasGuestData(s), false);
+
+  // A user-created category alone is worth migrating; an untouched legacy seed is not.
+  saveGuest({ ...g, categories: [newGuestCategory('อ่านทีหลัง', '📖', 0)] }, s);
+  assert.equal(hasGuestData(s), true);
+  const legacy = ['ความรู้ / บทความ', 'บันเทิง / คลิปวิดีโอ', 'งาน / โปรเจกต์', 'ช้อปปิ้ง / ของที่อยากได้', 'ทั่วไป'];
+  saveGuest({ ...g, categories: legacy.map((name, i) => newGuestCategory(name, null, i)) }, s);
+  assert.equal(hasGuestData(s), false);
+});
+
+test('item count bar only above 40 items', () => {
+  assert.equal(showItemCount(0), false);
+  assert.equal(showItemCount(40), false);
+  assert.equal(showItemCount(41), true);
+  assert.equal(showItemCount(50), true);
+});
+
+test('theme defaults to light', () => {
+  const s = memoryStorage();
+  assert.equal(getTheme(s), 'light');
+  s.setItem('kip.theme', 'dark');
+  assert.equal(getTheme(s), 'dark');
+  s.setItem('kip.theme', 'bogus');
+  assert.equal(getTheme(s), 'light');
 });
 
 test('guest store: quota error is surfaced', () => {
@@ -89,7 +113,14 @@ test('content detection', () => {
   assert.equal(getYouTubeId('https://www.youtube.com/shorts/abcDEF12345'), 'abcDEF12345');
   assert.equal(detectType({ url: 'https://www.facebook.com/share/p/123' }), 'facebook');
   assert.equal(detectType({ url: 'https://example.com' }), 'link');
+  assert.equal(detectType({ url: 'https://www.instagram.com/p/Cxyz/' }), 'instagram');
+  assert.equal(detectType({ url: 'https://vt.tiktok.com/ZSabc/' }), 'tiktok');
+  assert.equal(detectType({ url: 'https://www.tiktok.com/@a/video/1' }), 'tiktok');
+  assert.equal(detectType({ url: 'https://example.com/files/report.PDF' }), 'document');
+  assert.equal(detectType({ url: 'https://docs.google.com/document/d/abc/edit' }), 'document');
+  assert.equal(detectType({ url: 'https://notinstagram.com/x' }), 'link');
   assert.equal(detectType({}), 'text');
+  assert.equal(ITEM_TYPES.length, 8);
 
   const d = draftFromShare({ title: '', text: 'ดูอันนี้ https://youtu.be/dQw4w9WgXcQ', url: '' });
   assert.equal(d.type, 'youtube');

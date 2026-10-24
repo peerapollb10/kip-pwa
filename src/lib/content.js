@@ -32,13 +32,54 @@ export function isFacebookUrl(url) {
   }
 }
 
+function hostIn(url, hosts) {
+  try {
+    const host = new URL(url).hostname.replace(/^(www\.|m\.|vm\.|vt\.)/, '');
+    return hosts.some((h) => host === h || host.endsWith(`.${h}`));
+  } catch {
+    return false;
+  }
+}
+
+export const isInstagramUrl = (url) => hostIn(url, ['instagram.com', 'instagr.am']);
+export const isTikTokUrl = (url) => hostIn(url, ['tiktok.com']);
+
+const DOC_EXT_RE = /\.(pdf|docx?|xlsx?|pptx?|csv|txt|rtf|odt|ods|odp|pages|numbers|key)$/i;
+export function isDocumentUrl(url) {
+  try {
+    const u = new URL(url);
+    if (DOC_EXT_RE.test(u.pathname)) return true;
+    const host = u.hostname.replace(/^www\./, '');
+    if (host === 'docs.google.com') return true;
+    if (host === 'drive.google.com' && u.pathname.startsWith('/file/')) return true;
+  } catch {
+    /* not a URL */
+  }
+  return false;
+}
+
 export function detectType({ url, file } = {}) {
   if (file) return 'image';
   if (!url) return 'text';
   if (getYouTubeId(url)) return 'youtube';
   if (isFacebookUrl(url)) return 'facebook';
+  if (isInstagramUrl(url)) return 'instagram';
+  if (isTikTokUrl(url)) return 'tiktok';
+  if (isDocumentUrl(url)) return 'document';
   return 'link';
 }
+
+// Order shown in the Dashboard type filter.
+export const ITEM_TYPES = [
+  ['facebook', 'Facebook'],
+  ['text', 'โน้ต'],
+  ['image', 'รูปภาพ'],
+  ['youtube', 'YouTube'],
+  ['link', 'Web Link'],
+  ['instagram', 'Instagram'],
+  ['tiktok', 'TikTok'],
+  ['document', 'Document'],
+];
 
 // Normalise Web Share Target params ({title, text, url}) into a draft item.
 // Many Android apps put the URL inside `text` rather than `url`.

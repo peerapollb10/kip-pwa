@@ -4,6 +4,9 @@
 export const FULL_PRICE = { month: 49, year: 490 };
 export const FREE_ITEM_LIMIT = 50;
 export const URGENCY_THRESHOLD = 50;
+// The x/50 item-count bar only appears once the vault holds more than this many items.
+export const ITEM_COUNT_THRESHOLD = 40;
+export const showItemCount = (count) => count > ITEM_COUNT_THRESHOLD;
 
 export const TIERS = [
   { tier: 1, start: 0, end: 100, month: 19, year: 190 },

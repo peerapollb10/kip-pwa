@@ -104,7 +104,6 @@ export function KipProvider({ children }) {
 
   const isPro = !isGuest && checkPro(profile);
   const atLimit = !isPro && items.length >= FREE_ITEM_LIMIT;
-  const defaultCategory = categories.find((c) => c.is_default) || categories.find((c) => c.name === 'ทั่วไป') || null;
 
   const saveItem = useCallback(
     async (draft, categoryId) => {
@@ -199,14 +198,14 @@ export function KipProvider({ children }) {
 
   const removeCategory = useCallback(
     async (id) => {
-      const moveToInbox = (list) => list.map((i) => (i.category_id === id ? { ...i, category_id: null } : i));
+      const uncategorize = (list) => list.map((i) => (i.category_id === id ? { ...i, category_id: null } : i));
       if (isGuest) {
-        commitGuest((g) => ({ ...g, categories: g.categories.filter((c) => c.id !== id), items: moveToInbox(g.items) }));
+        commitGuest((g) => ({ ...g, categories: g.categories.filter((c) => c.id !== id), items: uncategorize(g.items) }));
         return;
       }
       await api.deleteCategory(id);
       setCategories((prev) => prev.filter((x) => x.id !== id));
-      setItems(moveToInbox); // FK is "on delete set null"
+      setItems(uncategorize); // FK is "on delete set null"
     },
     [isGuest, commitGuest],
   );
@@ -219,7 +218,6 @@ export function KipProvider({ children }) {
       isAdmin: profile?.role === 'admin' && !isGuest,
       profile,
       categories,
-      defaultCategory,
       items,
       loading,
       migrating,
@@ -239,7 +237,7 @@ export function KipProvider({ children }) {
       upgradeOpen,
       setUpgradeOpen,
     }),
-    [session, isGuest, profile, categories, defaultCategory, items, loading, migrating, error, refresh, isPro, atLimit, saveItem, patchItem, removeItem, saveProfile, addCategory, editCategory, removeCategory, toast, showToast, upgradeOpen],
+    [session, isGuest, profile, categories, items, loading, migrating, error, refresh, isPro, atLimit, saveItem, patchItem, removeItem, saveProfile, addCategory, editCategory, removeCategory, toast, showToast, upgradeOpen],
   );
 
   return <KipContext.Provider value={value}>{children}</KipContext.Provider>;

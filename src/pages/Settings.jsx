@@ -7,6 +7,7 @@ import CategoryManager from '../components/CategoryManager.jsx';
 import FeedbackModal from '../components/FeedbackModal.jsx';
 import SupportLinks from '../components/SupportLinks.jsx';
 import { FREE_ITEM_LIMIT } from '../lib/pricing.js';
+import { getTheme, setTheme } from '../lib/theme.js';
 
 function Section({ title, children }) {
   return (
@@ -20,7 +21,13 @@ function Section({ title, children }) {
 export default function Settings() {
   const { user, isGuest, isAdmin, migrating, profile, isPro, items, saveProfile, setUpgradeOpen, showToast } = useKip();
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [theme, setThemeState] = useState(getTheme);
   const navigate = useNavigate();
+
+  function chooseTheme(next) {
+    setTheme(next);
+    setThemeState(next);
+  }
 
   async function toggleQuickMode(next) {
     if (!isPro) return setUpgradeOpen(true);
@@ -66,9 +73,22 @@ export default function Settings() {
             <p className="text-sm font-medium">
               Quick Mode {!isPro && <span className="ml-1 rounded bg-brand-600 px-1.5 py-0.5 text-[10px] text-white">PRO</span>}
             </p>
-            <p className="text-xs text-slate-500">แชร์จากแอปอื่นแล้วเซฟเข้าหมวด “ทั่วไป” ทันที ไม่ต้องเลือกหมวดหมู่</p>
+            <p className="text-xs text-slate-500">แชร์จากแอปอื่นแล้วเซฟทันที ไม่ต้องเลือกหมวดหมู่</p>
           </div>
           <Toggle checked={Boolean(isPro && profile?.quick_mode)} onChange={toggleQuickMode} />
+        </div>
+      </Section>
+
+      <Section title="ธีม">
+        <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="ธีม">
+          {[
+            ['light', '☀️ Light'],
+            ['dark', '🌙 Dark'],
+          ].map(([value, label]) => (
+            <button key={value} type="button" role="radio" aria-checked={theme === value} className={`btn ${theme === value ? 'bg-brand-600 text-white' : 'btn-outline'}`} onClick={() => chooseTheme(value)}>
+              {label}
+            </button>
+          ))}
         </div>
       </Section>
 

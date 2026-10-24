@@ -2,20 +2,16 @@
 // then migrateGuestData() (api.js) moves it up to Supabase.
 const KEY = 'kip.guest.v1';
 
-export const DEFAULT_CATEGORIES = [
-  { name: 'ความรู้ / บทความ', emoji: '📚', is_default: false },
-  { name: 'บันเทิง / คลิปวิดีโอ', emoji: '🎬', is_default: false },
-  { name: 'งาน / โปรเจกต์', emoji: '💼', is_default: false },
-  { name: 'ช้อปปิ้ง / ของที่อยากได้', emoji: '🛍️', is_default: false },
-  { name: 'ทั่วไป', emoji: '📌', is_default: true },
-];
+// No default categories — users create their own; uncategorised items have category_id = null.
+// Older guest vaults were seeded with these names; an untouched seed isn't worth migrating.
+const LEGACY_SEED_NAMES = 'ความรู้ / บทความ|บันเทิง / คลิปวิดีโอ|งาน / โปรเจกต์|ช้อปปิ้ง / ของที่อยากได้|ทั่วไป';
 
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `g-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
 function seed() {
   return {
     profile: { view_mode: 'grid', onboarded: false, quick_mode: false, subscription_tier: 'free', pro_until: null, role: 'user' },
-    categories: DEFAULT_CATEGORIES.map((c, position) => ({ ...c, id: uid(), position })),
+    categories: [],
     items: [],
   };
 }
@@ -60,8 +56,8 @@ export function hasGuestData(storage = globalThis.localStorage) {
   try {
     const s = JSON.parse(storage.getItem(KEY) || 'null');
     if (!s) return false;
-    const defaults = DEFAULT_CATEGORIES.map((c) => c.name).join('|');
-    return s.items.length > 0 || s.categories.map((c) => c.name).join('|') !== defaults;
+    const names = s.categories.map((c) => c.name).join('|');
+    return s.items.length > 0 || (names !== '' && names !== LEGACY_SEED_NAMES);
   } catch {
     return false;
   }

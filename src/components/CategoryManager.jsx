@@ -33,7 +33,7 @@ export default function CategoryManager() {
     try {
       await removeCategory(id);
       setConfirmId(null);
-      showToast('ลบหมวดหมู่แล้ว รายการถูกย้ายไป Inbox');
+      showToast('ลบหมวดหมู่แล้ว รายการในหมวดนี้ไม่ถูกลบ');
     } catch {
       showToast('ลบไม่สำเร็จ', 'error');
     }
@@ -41,6 +41,7 @@ export default function CategoryManager() {
 
   return (
     <div>
+      {!categories.length && <p className="text-sm text-slate-500">ยังไม่มีหมวดหมู่ — สร้างหมวดแรกได้ด้านล่าง</p>}
       <ul className="divide-y divide-slate-100 dark:divide-white/5">
         {categories.map((c) => (
           <li key={c.id} className="flex items-center gap-2 py-2.5">
@@ -53,19 +54,16 @@ export default function CategoryManager() {
               </>
             ) : confirmId === c.id ? (
               <>
-                <span className="flex-1 text-sm text-red-600">ลบ “{c.name}”? รายการจะย้ายไป Inbox</span>
+                <span className="flex-1 text-sm text-red-600">ลบ “{c.name}”? รายการจะกลายเป็นไม่มีหมวดหมู่</span>
                 <button className="btn-ghost px-2" onClick={() => setConfirmId(null)}>ยกเลิก</button>
                 <button className="btn bg-red-600 px-3 text-white" onClick={() => remove(c.id)}>ลบ</button>
               </>
             ) : (
               <>
                 <span className="w-7 text-center text-lg">{c.emoji}</span>
-                <span className="flex-1 text-sm">
-                  {c.name}
-                  {c.is_default && <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500 dark:bg-white/10">ค่าเริ่มต้น · Quick Mode</span>}
-                </span>
+                <span className="flex-1 text-sm">{c.name}</span>
                 <button className="btn-ghost px-2 text-xs" onClick={() => setEditing({ id: c.id, name: c.name, emoji: c.emoji })}>แก้ไข</button>
-                {!c.is_default && <button className="btn-ghost px-2 text-xs text-red-600" onClick={() => setConfirmId(c.id)}>ลบ</button>}
+                <button className="btn-ghost px-2 text-xs text-red-600" onClick={() => setConfirmId(c.id)}>ลบ</button>
               </>
             )}
           </li>

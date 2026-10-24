@@ -61,7 +61,11 @@ async function uploadImage(userId, blob, ext) {
 }
 
 async function insertItem(row, image_path) {
-  const { data, error } = await supabase.from('items').insert({ ...row, image_path }).select().single();
+  let { data, error } = await supabase.from('items').insert({ ...row, image_path }).select().single();
+  // DB without migration 0003 rejects instagram/tiktok/document → keep the save, store as a plain link.
+  if (error?.code === '23514' && error.message?.includes('items_type_check') && row.type !== 'link') {
+    ({ data, error } = await supabase.from('items').insert({ ...row, type: 'link', image_path }).select().single());
+  }
   if (error && image_path) await supabase.storage.from(IMAGE_BUCKET).remove([image_path]);
   raise(error);
   return data;

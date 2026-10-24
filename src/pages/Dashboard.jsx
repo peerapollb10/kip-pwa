@@ -5,31 +5,38 @@ import { GridCard } from '../components/ItemCard.jsx';
 import ItemDetail from '../components/ItemDetail.jsx';
 import SaveSheet from '../components/SaveSheet.jsx';
 import { EmptyState } from '../components/ui.jsx';
-import { FREE_ITEM_LIMIT } from '../lib/pricing.js';
+import { FREE_ITEM_LIMIT, showItemCount } from '../lib/pricing.js';
+import { ITEM_TYPES } from '../lib/content.js';
 
 const isEditable = (el) => el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
 
 export default function Dashboard() {
   const { items, categories, loading, migrating, error, refresh, isGuest, isPro, patchItem } = useKip();
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState('all'); // 'all' | 'fav' | 'inbox' | categoryId
+  const [favOnly, setFavOnly] = useState(false);
+  const [types, setTypes] = useState([]); // multi-select; [] = all types
+  const [categoryFilter, setCategoryFilter] = useState('all'); // 'all' | categoryId
   const [openId, setOpenId] = useState(null);
   const [composer, setComposer] = useState(null); // null = closed, {} = open
   const [dragging, setDragging] = useState(false);
   const q = useDeferredValue(query.trim().toLowerCase());
 
   const catMap = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories]);
+  // A deleted category can't stay selected (its filter row may even be hidden).
+  const activeCategory = catMap[categoryFilter] ? categoryFilter : 'all';
 
   const visible = useMemo(() => {
     return items.filter((i) => {
-      if (filter === 'fav' && !i.is_favorite) return false;
-      if (filter === 'inbox' && i.category_id) return false;
-      if (filter !== 'all' && filter !== 'fav' && filter !== 'inbox' && i.category_id !== filter) return false;
+      if (favOnly && !i.is_favorite) return false;
+      if (types.length && !types.includes(i.type)) return false;
+      if (activeCategory !== 'all' && i.category_id !== activeCategory) return false;
       if (!q) return true;
       return [i.title, i.note, i.description, i.content_url, i.site_name, catMap[i.category_id]?.name]
         .some((f) => f && f.toLowerCase().includes(q));
     });
-  }, [items, filter, q, catMap]);
+  }, [items, favOnly, types, activeCategory, q, catMap]);
+
+  const toggleType = (t) => setTypes((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
 
   // Desktop: paste anywhere (outside inputs) → open save sheet
   useEffect(() => {
@@ -90,19 +97,39 @@ export default function Dashboard() {
           </Link>
         </div>
 
-        {/* Category filter */}
-        <div className="no-scrollbar mx-auto flex max-w-6xl gap-2 overflow-x-auto px-4 pb-3">
-          {[
-            ['all', 'ทั้งหมด'],
-            ['fav', '⭐ รายการโปรด'],
-            ['inbox', '📥 Inbox'],
-            ...categories.map((c) => [c.id, `${c.emoji ?? ''} ${c.name}`]),
-          ].map(([id, label]) => (
-            <button key={id} className={filter === id ? 'chip-on' : 'chip-off'} onClick={() => setFilter(id)}>
+        {/* Type filter (multi-select) + favourites */}
+        <div className="no-scrollbar mx-auto flex max-w-6xl gap-2 overflow-x-auto px-4 pb-2" role="group" aria-label="กรองตามประเภท" data-testid="type-filter">
+          <button
+            className={!types.length && !favOnly ? 'chip-on' : 'chip-off'}
+            aria-pressed={!types.length && !favOnly}
+            onClick={() => {
+              setTypes([]);
+              setFavOnly(false);
+            }}
+          >
+            ทั้งหมด
+          </button>
+          <button className={favOnly ? 'chip-on' : 'chip-off'} aria-pressed={favOnly} onClick={() => setFavOnly((v) => !v)}>
+            ⭐ รายการโปรด
+          </button>
+          {ITEM_TYPES.map(([t, label]) => (
+            <button key={t} className={types.includes(t) ? 'chip-on' : 'chip-off'} aria-pressed={types.includes(t)} onClick={() => toggleType(t)}>
+              {types.includes(t) && '✓ '}
               {label}
             </button>
           ))}
         </div>
+
+        {/* Category filter — only once the user has created a category */}
+        {categories.length > 0 && (
+          <div className="no-scrollbar mx-auto flex max-w-6xl gap-2 overflow-x-auto px-4 pb-3" role="group" aria-label="กรองตามหมวดหมู่" data-testid="category-filter">
+            {[['all', 'ทุกหมวดหมู่'], ...categories.map((c) => [c.id, `${c.emoji ?? ''} ${c.name}`])].map(([id, label]) => (
+              <button key={id} className={activeCategory === id ? 'chip-on' : 'chip-off'} aria-pressed={activeCategory === id} onClick={() => setCategoryFilter(id)}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
       </header>
 
       <main className="mx-auto max-w-6xl px-4 pt-4">
@@ -115,8 +142,8 @@ export default function Dashboard() {
         {migrating && (
           <div className="mb-3 rounded-2xl bg-brand-50 px-3 py-2.5 text-sm text-brand-700 dark:bg-brand-500/10 dark:text-brand-100">กำลังย้ายข้อมูลจากโหมด Guest ขึ้นบัญชี...</div>
         )}
-        {!isPro && (
-          <Link to="/pricing" className="card mb-4 flex items-center gap-3 p-3 text-sm">
+        {!isPro && showItemCount(used) && (
+          <Link to="/pricing" className="card mb-4 flex items-center gap-3 p-3 text-sm" data-testid="item-count-bar">
             <div className="flex-1">
               <div className="flex justify-between text-xs text-slate-500">
                 <span>แพ็กเกจฟรี</span>
@@ -146,7 +173,7 @@ export default function Dashboard() {
             กดแชร์จากแอปอื่นมาที่ Kip, กดปุ่ม + ด้านล่าง หรือบนคอมพิวเตอร์ลองกด Ctrl/⌘ + V หรือลากลิงก์มาวางได้เลย
           </EmptyState>
         ) : !visible.length ? (
-          <EmptyState icon="🔍" title="ไม่พบรายการ">ลองค้นหาด้วยคำอื่น หรือเปลี่ยนหมวดหมู่</EmptyState>
+          <EmptyState icon="🔍" title="ไม่พบรายการ">ลองค้นหาด้วยคำอื่น หรือเปลี่ยนตัวกรองประเภท/หมวดหมู่</EmptyState>
         ) : (
           <div className="columns-2 gap-3 sm:columns-3 lg:columns-4">
             {visible.map((item) => (
