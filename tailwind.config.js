@@ -4,6 +4,16 @@ export default {
   darkMode: 'class', // Light by default; Dark via Settings (src/lib/theme.js)
   theme: {
     extend: {
+      // Type scale ~1–2px larger than Tailwind's default for legibility (spacing untouched).
+      fontSize: {
+        xs: ['0.8125rem', { lineHeight: '1.125rem' }], // 13px
+        sm: ['0.9375rem', { lineHeight: '1.375rem' }], // 15px
+        base: ['1.0625rem', { lineHeight: '1.625rem' }], // 17px
+        lg: ['1.1875rem', { lineHeight: '1.75rem' }], // 19px
+        xl: ['1.3125rem', { lineHeight: '1.875rem' }], // 21px
+        '2xl': ['1.5625rem', { lineHeight: '2.125rem' }], // 25px
+        '3xl': ['1.9375rem', { lineHeight: '2.375rem' }], // 31px
+      },
       fontFamily: {
         sans: ['"IBM Plex Sans Thai"', 'Inter', 'system-ui', 'sans-serif'],
       },

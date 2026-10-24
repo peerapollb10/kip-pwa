@@ -88,7 +88,7 @@ function UserRow({ user, onChanged }) {
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{user.email || '(ไม่มีอีเมล)'}</p>
-          <p className="truncate font-mono text-[11px] text-slate-400">{user.id}</p>
+          <p className="truncate font-mono text-xs text-slate-400">{user.id}</p>
           <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
             <span className={`rounded-full px-2 py-0.5 font-semibold ${pro ? 'bg-brand-600 text-white' : 'bg-slate-100 dark:bg-white/10'}`}>
               {pro ? 'Pro' : 'Free'}

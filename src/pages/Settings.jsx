@@ -75,7 +75,7 @@ export default function Settings() {
         <div className="flex items-start gap-3">
           <div className="flex-1">
             <p className="text-sm font-medium">
-              Quick Mode {!isPro && <span className="ml-1 rounded bg-brand-600 px-1.5 py-0.5 text-[10px] text-white">PRO</span>}
+              Quick Mode {!isPro && <span className="ml-1 rounded bg-brand-600 px-1.5 py-0.5 text-xs text-white">PRO</span>}
             </p>
             <p className="text-xs text-slate-500">แชร์จากแอปอื่นแล้วเซฟทันที ไม่ต้องเลือกหมวดหมู่</p>
           </div>

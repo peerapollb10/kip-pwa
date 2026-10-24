@@ -121,7 +121,7 @@ export function GridCard({ item, category, onOpen, onToggleFavorite, selecting =
         {item.type === 'text' && item.note && item.note !== titleOf(item) && (
           <p className="mt-1 line-clamp-4 whitespace-pre-line text-xs text-slate-500 dark:text-slate-400">{item.note}</p>
         )}
-        {category && <p className="mt-2 truncate text-[11px] text-slate-400">{`${category.emoji ?? ''} ${category.name}`.trim()}</p>}
+        {category && <p className="mt-2 truncate text-xs text-slate-400">{`${category.emoji ?? ''} ${category.name}`.trim()}</p>}
       </div>
     </article>
   );

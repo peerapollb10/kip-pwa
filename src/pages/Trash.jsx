@@ -17,7 +17,7 @@ function TrashRow({ item, onRestore, onDelete, busy }) {
         <h3 className="truncate text-sm font-medium">{titleOf(item)}</h3>
         <div className="mt-1 flex items-center gap-2">
           <TypeBadge type={item.type} />
-          <span className={`text-[11px] ${left <= 3 ? 'text-red-500' : 'text-slate-400'}`}>
+          <span className={`text-xs ${left <= 3 ? 'text-red-500' : 'text-slate-400'}`}>
             {left > 0 ? `ลบถาวรใน ${left} วัน` : 'จะถูกลบถาวรเร็ว ๆ นี้'}
           </span>
         </div>

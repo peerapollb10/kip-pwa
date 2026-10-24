@@ -81,7 +81,7 @@ export default function Onboarding() {
         <ol className="mx-auto mt-3 max-w-xs space-y-2 text-sm text-slate-600 dark:text-slate-300">
           {slide.steps.map((s, i) => (
             <li key={s} className="flex gap-2">
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-600 text-[11px] font-semibold text-white">{i + 1}</span>
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-600 text-xs font-semibold text-white">{i + 1}</span>
               {s}
             </li>
           ))}

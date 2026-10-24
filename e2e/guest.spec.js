@@ -33,13 +33,13 @@ test('first visit opens onboarding without a login wall', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'ข้าม' })).toBeVisible();
   await shot(page, '01-onboarding');
   await page.getByRole('button', { name: 'ข้าม' }).click();
-  await expect(page.getByTestId('guest-banner')).toBeVisible();
+  await expect(page.getByTestId('guest-banner')).toHaveCount(0);
 });
 
 test('guest can save a note that persists after reload', async ({ page }) => {
   await startAsOnboardedGuest(page);
   await page.goto('/');
-  await expect(page.getByTestId('guest-banner')).toBeVisible();
+  await expect(page.getByTestId('guest-banner')).toHaveCount(0);
   await expect(page.getByText('ยังไม่มีอะไรใน Kip')).toBeVisible();
   await shot(page, '02-guest-empty');
 
