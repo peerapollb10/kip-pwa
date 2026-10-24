@@ -93,6 +93,31 @@ test('type filter is multi-select and count bar shows only above 40 items', asyn
   await expect(page.getByRole('heading', { name: /^รายการ/ })).toHaveCount(41);
 });
 
+test('free plan at 50 items: + is locked and opens the upgrade sheet instead of the save sheet', async ({ page }) => {
+  await startAsOnboardedGuest(page, { categories: [], items: Array.from({ length: 50 }, (_, i) => fakeItem(i, 'text')) });
+  await page.goto('/');
+  await expect(page.getByTestId('item-count-bar')).toContainText('50/50');
+  const fab = page.getByTestId('fab');
+  await expect(fab).toHaveAttribute('data-locked', 'true');
+
+  await fab.click();
+  const sheet = page.getByRole('dialog');
+  await expect(sheet.getByTestId('limit-reached')).toContainText('50/50');
+  await expect(sheet.getByPlaceholder('วางลิงก์ หรือพิมพ์โน้ต...')).toHaveCount(0);
+  await shot(page, '14-limit-reached');
+
+  // Paste outside inputs is blocked the same way.
+  await page.keyboard.press('Escape');
+  await expect(sheet).toHaveCount(0);
+  await page.evaluate(() => {
+    const e = new Event('paste', { bubbles: true, cancelable: true });
+    e.clipboardData = { files: [], getData: () => 'https://example.com/new' };
+    window.dispatchEvent(e);
+  });
+  await expect(page.getByTestId('limit-reached')).toBeVisible();
+  await expect(page.getByPlaceholder('วางลิงก์ หรือพิมพ์โน้ต...')).toHaveCount(0);
+});
+
 test('IG / TikTok / Document stay out of the filter until enabled in settings', async ({ page }) => {
   await startAsOnboardedGuest(page);
   await page.goto('/');
@@ -121,20 +146,155 @@ test('settings can switch to dark mode and it persists', async ({ page }) => {
   await expect(page.locator('html')).not.toHaveClass(/dark/);
 });
 
-test('login page offers Gmail and LINE', async ({ page }) => {
+test('login page shows official Google and LINE buttons', async ({ page }) => {
   await page.goto('/login');
-  await expect(page.getByRole('button', { name: /Gmail/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: /LINE/ })).toBeVisible();
+  const google = page.getByRole('button', { name: 'ลงชื่อเข้าใช้ด้วย Google' });
+  const line = page.getByRole('button', { name: 'เข้าสู่ระบบด้วย LINE' });
+  await expect(google).toBeVisible();
+  await expect(line).toBeVisible();
+  await expect(google).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await expect(google).toHaveCSS('border-top-color', 'rgb(116, 119, 117)'); // #747775
+  await expect(line).toHaveCSS('background-color', 'rgb(6, 199, 85)'); // #06C755
+  await expect(google.locator('svg path')).toHaveCount(4); // 4-colour G
   await expect(page.getByRole('link', { name: 'ใช้งานต่อแบบ Guest' })).toBeVisible();
   await shot(page, '05-login');
 });
 
-test('settings shows guest account section', async ({ page }) => {
+test('login page shows LINE callback errors', async ({ page }) => {
+  await page.goto('/login?error=LINE_CANCELLED');
+  await expect(page.getByRole('alert')).toHaveText('ยกเลิกการเข้าสู่ระบบด้วย LINE');
+});
+
+test('LINE button goes to the LINE redirect endpoint', async ({ page }) => {
+  await page.route('**/api/auth/line**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: 'line-redirect' }));
+  await page.goto('/login');
+  await page.getByRole('button', { name: 'เข้าสู่ระบบด้วย LINE' }).click();
+  await expect(page).toHaveURL(/\/api\/auth\/line\?from=%2F$/);
+});
+
+test('guest sees login entry in header and brand buttons in settings', async ({ page }) => {
   await startAsOnboardedGuest(page);
+  await page.goto('/');
+  await expect(page.getByTestId('guest-login')).toBeVisible();
+  await expect(page.getByTestId('member-avatar')).toHaveCount(0);
   await page.goto('/settings');
   await expect(page.getByText('โหมด Guest', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('account-guest').getByRole('button', { name: 'ลงชื่อเข้าใช้ด้วย Google' })).toBeVisible();
+  await expect(page.getByTestId('account-guest').getByRole('button', { name: 'เข้าสู่ระบบด้วย LINE' })).toBeVisible();
   await expect(page.getByText('ออกจากระบบ')).toHaveCount(0);
   await shot(page, '06-settings-guest');
+});
+
+// Member: fake a stored Supabase session + mock PostgREST, so no real backend is needed.
+test('member sees avatar in header and account card in settings', async ({ page }) => {
+  test.skip(Boolean(process.env.E2E_BASE_URL), 'needs the local dev server with placeholder Supabase URL');
+  const ref = new URL(process.env.VITE_SUPABASE_URL || 'http://127.0.0.1:54321').hostname.split('.')[0];
+  const user = {
+    id: '00000000-0000-0000-0000-000000000001', aud: 'authenticated', role: 'authenticated', email: 'line_U123@line.kip.invalid',
+    app_metadata: { provider: 'email' }, user_metadata: { provider: 'line', line_user_id: 'U123', full_name: 'สมชาย LINE' },
+  };
+  await page.addInitScript(({ key, user }) => {
+    const now = Math.floor(Date.now() / 1000);
+    localStorage.setItem(key, JSON.stringify({ access_token: 'e2e', refresh_token: 'e2e', token_type: 'bearer', expires_in: 3600, expires_at: now + 3600, user }));
+  }, { key: `sb-${ref}-auth-token`, user });
+  await page.route('**/rest/v1/**', (route) => {
+    const url = route.request().url();
+    if (url.includes('/profiles')) {
+      return route.fulfill({ json: { id: user.id, onboarded: true, view_mode: 'grid', quick_mode: false, subscription_tier: 'free', pro_until: null, role: 'user' } });
+    }
+    return route.fulfill({ json: [] });
+  });
+
+  await page.goto('/');
+  await expect(page.getByTestId('member-avatar')).toBeVisible();
+  await expect(page.getByTestId('guest-login')).toHaveCount(0);
+  await shot(page, '12-member-header');
+  await page.getByTestId('member-avatar').click();
+  await expect(page).toHaveURL(/\/settings$/);
+  const card = page.getByTestId('account-member');
+  await expect(card).toContainText('สมชาย LINE');
+  await expect(card).toContainText('เชื่อมต่อด้วย LINE');
+  await expect(card).not.toContainText('.invalid');
+  await expect(page.getByRole('button', { name: 'ออกจากระบบ' })).toBeVisible();
+  await shot(page, '13-settings-member');
+  await page.goto('/login');
+  await expect(page).toHaveURL(/\/$/); // members skip the login page
+});
+
+test('member at the limit pays by PromptPay QR and attaches a slip → pending review', async ({ page }) => {
+  test.skip(Boolean(process.env.E2E_BASE_URL), 'needs the local dev server with placeholder Supabase URL');
+  const ref = new URL(process.env.VITE_SUPABASE_URL || 'http://127.0.0.1:54321').hostname.split('.')[0];
+  const user = { id: '00000000-0000-0000-0000-000000000002', aud: 'authenticated', role: 'authenticated', email: 'pay@example.com', app_metadata: { provider: 'google' }, user_metadata: { full_name: 'ผู้จ่าย' } };
+  await page.addInitScript(({ key, user }) => {
+    const now = Math.floor(Date.now() / 1000);
+    localStorage.setItem(key, JSON.stringify({ access_token: 'e2e', refresh_token: 'e2e', token_type: 'bearer', expires_in: 3600, expires_at: now + 3600, user }));
+  }, { key: `sb-${ref}-auth-token`, user });
+  let submitted = null;
+  await page.route('**/rest/v1/**', (route) => {
+    const url = route.request().url();
+    if (url.includes('/profiles')) return route.fulfill({ json: { id: user.id, onboarded: true, view_mode: 'grid', quick_mode: false, subscription_tier: 'free', pro_until: null, role: 'user' } });
+    if (url.includes('/items')) return route.fulfill({ json: url.includes('deleted_at=not.is.null') ? [] : Array.from({ length: 50 }, (_, i) => ({ ...fakeItem(i, 'text'), deleted_at: null })) });
+    if (url.includes('/rpc/get_pro_count')) return route.fulfill({ json: 0 });
+    if (url.includes('/rpc/submit_payment_slip')) {
+      submitted = route.request().postDataJSON();
+      return route.fulfill({ json: { id: 's1', user_id: user.id, amount: 19, billing_interval: 'month', tier: 1, status: 'pending', slip_path: submitted.p_slip_path, created_at: new Date().toISOString() } });
+    }
+    return route.fulfill({ json: [] });
+  });
+  await page.route('**/storage/v1/object/payment-slips/**', (route) => route.fulfill({ json: { Key: 'payment-slips/x' } }));
+
+  await page.goto('/');
+  await page.getByTestId('fab').click();
+  const sheet = page.getByRole('dialog');
+  await sheet.getByRole('button', { name: /PromptPay QR/ }).click();
+  await expect(sheet.getByTestId('promptpay-qr')).toBeVisible();
+  await expect(sheet.getByTestId('promptpay-amount')).toHaveText('฿19.00');
+  await expect(sheet.getByTestId('promptpay-id')).toHaveText('081-234-5678');
+  await shot(page, '15-promptpay-qr');
+
+  // 1×1 PNG as the slip.
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+  await sheet.getByTestId('slip-input').setInputFiles({ name: 'slip.png', mimeType: 'image/png', buffer: png });
+  await sheet.getByRole('button', { name: 'ส่งสลิปเพื่อยืนยันการชำระเงิน' }).click();
+  await expect(sheet.getByTestId('slip-pending')).toContainText('รอแอดมินตรวจสอบ');
+  expect(submitted).toMatchObject({ p_interval: 'month', p_amount: 19 });
+  expect(submitted.p_slip_path).toMatch(new RegExp(`^${user.id}/`));
+  await shot(page, '16-slip-pending');
+});
+
+test('admin reviews pending slips: image, amount, name, approve → RPC', async ({ page }) => {
+  test.skip(Boolean(process.env.E2E_BASE_URL), 'needs the local dev server with placeholder Supabase URL');
+  const ref = new URL(process.env.VITE_SUPABASE_URL || 'http://127.0.0.1:54321').hostname.split('.')[0];
+  const admin = { id: '00000000-0000-0000-0000-0000000000aa', aud: 'authenticated', role: 'authenticated', email: 'admin@example.com', app_metadata: { provider: 'google' }, user_metadata: {} };
+  await page.addInitScript(({ key, user }) => {
+    const now = Math.floor(Date.now() / 1000);
+    localStorage.setItem(key, JSON.stringify({ access_token: 'e2e', refresh_token: 'e2e', token_type: 'bearer', expires_in: 3600, expires_at: now + 3600, user }));
+  }, { key: `sb-${ref}-auth-token`, user: admin });
+  const slip = { id: 's1', user_id: 'u1', email: 'buyer@example.com', display_name: 'คุณผู้ซื้อ', amount: 190, billing_interval: 'year', tier: 1, slip_path: 'u1/a.webp', status: 'pending', review_note: null, created_at: new Date().toISOString(), reviewed_at: null };
+  let reviewed = null;
+  await page.route('**/rest/v1/**', (route) => {
+    const url = route.request().url();
+    if (url.includes('/profiles')) return route.fulfill({ json: { id: admin.id, onboarded: true, view_mode: 'grid', quick_mode: false, subscription_tier: 'free', pro_until: null, role: 'admin' } });
+    if (url.includes('/rpc/admin_stats')) return route.fulfill({ json: { total_users: 3, pro_users: 1, revenue_thb: 0, storage_bytes: 0 } });
+    if (url.includes('/rpc/admin_list_slips')) return route.fulfill({ json: reviewed ? [] : [slip] });
+    if (url.includes('/rpc/admin_review_slip')) {
+      reviewed = route.request().postDataJSON();
+      return route.fulfill({ status: 204, body: '' });
+    }
+    return route.fulfill({ json: [] });
+  });
+  await page.route('**/storage/v1/object/sign/payment-slips', (route) => route.fulfill({ json: [{ path: 'u1/a.webp', signedURL: '/object/sign/payment-slips/u1/a.webp?token=x', error: null }] }));
+
+  await page.goto('/admin');
+  const row = page.getByTestId('slip-row');
+  await expect(row).toContainText('฿190');
+  await expect(row).toContainText('คุณผู้ซื้อ');
+  await expect(row).toContainText('รายปี');
+  await expect(row.getByRole('img', { name: 'สลิปการโอน' })).toHaveCount(1);
+  await shot(page, '17-admin-slips');
+  await row.getByRole('button', { name: '✓ อนุมัติ' }).click();
+  await expect(page.getByText('ไม่มีสลิปรออนุมัติ')).toBeVisible();
+  expect(reviewed).toMatchObject({ p_slip: 's1', p_approve: true });
 });
 
 test('admin route is closed to guests', async ({ page }) => {
@@ -182,4 +342,42 @@ test('long press → multi-select → trash, then restore / delete permanently f
 
   await page.goto('/');
   await expect(cards).toHaveCount(2);
+});
+
+test('share target pre-fills the composer and waits for the user to save', async ({ page }) => {
+  await startAsOnboardedGuest(page);
+  await page.route('**/functions/v1/og-metadata', (route) => route.fulfill({ json: { title: 'Example', description: null, thumbnail_url: null, site_name: 'example.com' } }));
+  await page.goto(`/share?title=${encodeURIComponent('บทความดี')}&text=${encodeURIComponent('อ่านทีหลัง https://example.com/post')}`);
+  const sheet = page.getByRole('dialog');
+  await expect(sheet.getByTestId('shared-hint')).toBeVisible();
+  await expect(sheet.getByPlaceholder('วางลิงก์ หรือพิมพ์โน้ต...')).toHaveValue('https://example.com/post');
+  await expect(sheet.getByPlaceholder('ชื่อเรื่อง (ไม่บังคับ)')).toHaveValue('บทความดี');
+  await expect(sheet.getByPlaceholder('เพิ่มโน้ต (ไม่บังคับ)')).toHaveValue('อ่านทีหลัง');
+  // Nothing is saved until the user taps save (no background quick-save).
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('kip.guest.v1')).items.length)).toBe(0);
+  await shot(page, '12-share-composer');
+  await sheet.getByRole('button', { name: 'เซฟ', exact: true }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole('heading', { name: 'บทความดี' })).toBeVisible();
+});
+
+test('install guide: OS-specific steps, opened from the dashboard hint and settings', async ({ page }, info) => {
+  await startAsOnboardedGuest(page);
+  await page.goto('/');
+  await page.getByTestId('install-hint').getByRole('button', { name: 'วิธีติดตั้ง' }).click();
+  const guide = page.getByTestId('install-guide');
+  await expect(guide.getByTestId(info.project.name === 'iphone' ? 'install-ios' : 'install-android')).toBeVisible();
+  await shot(page, '13-install-guide');
+  await guide.getByRole('tab', { name: 'iPhone / iPad' }).click();
+  await expect(guide.getByText('“เพิ่มไปยังหน้าจอโฮม”')).toBeVisible();
+  await page.getByRole('button', { name: 'ปิด' }).click();
+
+  // Dismissing the hint persists across reloads; the guide stays reachable from settings.
+  await page.getByRole('button', { name: 'ซ่อนคำแนะนำการติดตั้ง' }).click();
+  await page.reload();
+  await expect(page.getByText('ยังไม่มีอะไรใน Kip')).toBeVisible();
+  await expect(page.getByTestId('install-hint')).toHaveCount(0);
+  await page.goto('/settings');
+  await page.getByTestId('open-install-guide').click();
+  await expect(page.getByTestId('install-guide')).toBeVisible();
 });

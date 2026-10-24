@@ -1,19 +1,25 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useKip } from '../context/KipContext.jsx';
-import { getProCount, getSubscription, startCheckout } from '../lib/api.js';
+import { getLatestSlip, getProCount, getSubscription, startCheckout } from '../lib/api.js';
 import { getPricingStatus, getTier, FREE_ITEM_LIMIT } from '../lib/pricing.js';
+import PromptPayCheckout from './PromptPayCheckout.jsx';
 import { Spinner } from './ui.jsx';
 
 export function usePricing() {
   const { user } = useKip();
-  const [state, setState] = useState({ loading: true, status: null, subscription: null, error: null });
+  const [state, setState] = useState({ loading: true, status: null, subscription: null, slip: null, error: null });
 
   useEffect(() => {
     let alive = true;
-    Promise.all([getProCount(), user ? getSubscription(user.id) : null])
-      .then(([count, subscription]) => alive && setState({ loading: false, status: getPricingStatus(count), subscription, error: null }))
-      .catch(() => alive && setState({ loading: false, status: null, subscription: null, error: 'โหลดราคาไม่สำเร็จ' }));
+    Promise.all([
+      getProCount(),
+      user ? getSubscription(user.id) : null,
+      // A missing payment_slips table (migration 0006 not run) must not break the pricing UI.
+      user ? getLatestSlip(user.id).catch(() => null) : null,
+    ])
+      .then(([count, subscription, slip]) => alive && setState({ loading: false, status: getPricingStatus(count), subscription, slip, error: null }))
+      .catch(() => alive && setState({ loading: false, status: null, subscription: null, slip: null, error: 'โหลดราคาไม่สำเร็จ' }));
     return () => {
       alive = false;
     };
@@ -21,13 +27,36 @@ export function usePricing() {
   return state;
 }
 
+function SlipStatus({ slip }) {
+  if (slip?.status === 'pending') {
+    return (
+      <div className="mt-5 rounded-xl bg-amber-50 p-3 text-center text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-200" data-testid="slip-pending">
+        <p className="font-semibold">⏳ ได้รับสลิปแล้ว — รอแอดมินตรวจสอบ</p>
+        <p className="mt-0.5 text-xs">ยอด ฿{Number(slip.amount).toLocaleString('th-TH')} · ส่งเมื่อ {new Date(slip.created_at).toLocaleString('th-TH')}</p>
+        <p className="mt-0.5 text-xs">เมื่ออนุมัติแล้ว บัญชีจะเป็น Pro อัตโนมัติ</p>
+      </div>
+    );
+  }
+  if (slip?.status === 'rejected') {
+    return (
+      <p className="mt-4 rounded-xl bg-red-50 p-3 text-xs text-red-700 dark:bg-red-500/10 dark:text-red-300" role="alert">
+        สลิปล่าสุดไม่ผ่านการตรวจสอบ{slip.review_note ? `: ${slip.review_note}` : ''} — กรุณาชำระและแนบสลิปใหม่
+      </p>
+    );
+  }
+  return null;
+}
+
 export default function PricingPanel({ compact = false }) {
   const { user, isPro } = useKip();
   const navigate = useNavigate();
-  const { loading, status, subscription, error } = usePricing();
+  const { loading, status, subscription, slip: loadedSlip, error } = usePricing();
   const [interval, setBillingInterval] = useState('month');
   const [paying, setPaying] = useState(null);
   const [payError, setPayError] = useState(null);
+  const [qrCheckout, setQrCheckout] = useState(false);
+  const [submittedSlip, setSubmittedSlip] = useState(null);
+  const slip = submittedSlip ?? loadedSlip;
 
   if (loading) return <Spinner full />;
   if (error) return <p className="py-10 text-center text-sm text-red-600">{error}</p>;
@@ -82,7 +111,7 @@ export default function PricingPanel({ compact = false }) {
 
         <div className="mt-3 inline-flex rounded-xl bg-slate-100 p-1 text-sm dark:bg-white/10">
           {['month', 'year'].map((i) => (
-            <button key={i} onClick={() => setBillingInterval(i)} className={`rounded-lg px-3 py-1 ${interval === i ? 'bg-white shadow dark:bg-white/20' : 'text-slate-500'}`}>
+            <button key={i} disabled={qrCheckout} onClick={() => setBillingInterval(i)} className={`rounded-lg px-3 py-1 ${interval === i ? 'bg-white shadow dark:bg-white/20' : 'text-slate-500'}`}>
               {i === 'month' ? 'รายเดือน' : 'รายปี (ประหยัด ~17%)'}
             </button>
           ))}
@@ -113,10 +142,24 @@ export default function PricingPanel({ compact = false }) {
 
         {isPro ? (
           <p className="mt-5 rounded-xl bg-emerald-50 p-3 text-center text-sm font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">คุณเป็นสมาชิก Pro แล้ว ✓</p>
+        ) : slip?.status === 'pending' ? (
+          <SlipStatus slip={slip} />
+        ) : qrCheckout ? (
+          <PromptPayCheckout
+            interval={interval}
+            amount={price}
+            onBack={() => setQrCheckout(false)}
+            onSubmitted={(s) => {
+              setSubmittedSlip(s);
+              setQrCheckout(false);
+            }}
+          />
         ) : (
           <div className="mt-5 grid gap-2">
-            <button className="btn-primary" disabled={Boolean(paying)} onClick={() => pay('promptpay')}>
-              {paying === 'promptpay' ? <Spinner className="border-white border-t-transparent" /> : '📱 จ่ายด้วย PromptPay QR'}
+            <SlipStatus slip={slip} />
+            {/* PromptPay = scan our QR + attach the slip (admin approves); card = Stripe subscription. */}
+            <button className="btn-primary" disabled={Boolean(paying)} onClick={() => (user ? setQrCheckout(true) : navigate('/login', { state: { from: '/pricing' } }))}>
+              📱 จ่ายด้วย PromptPay QR
             </button>
             <button className="btn-outline" disabled={Boolean(paying)} onClick={() => pay('card')}>
               {paying === 'card' ? <Spinner /> : '💳 บัตรเครดิต / เดบิต (ต่ออายุอัตโนมัติ)'}

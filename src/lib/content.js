@@ -99,6 +99,19 @@ export function draftFromShare({ title = '', text = '', url = '' } = {}, enabled
   };
 }
 
+// Web Share Target payload → SaveSheet `initial`: the URL alone goes into the composer field,
+// any other shared text moves to the note (dropping a copy of the title, which apps often repeat).
+export function composerFromShare({ title = '', text = '', url = '', file = null } = {}) {
+  title = String(title || '').trim();
+  text = String(text || '').trim();
+  const foundUrl = String(url || '').trim() || extractUrl(text) || extractUrl(title);
+  if (file || !foundUrl) return { title, text, note: '', file };
+  const strip = (s) => s.split(foundUrl).join(' ').replace(/\s+/g, ' ').trim();
+  const cleanTitle = strip(title);
+  const leftover = strip(text);
+  return { title: cleanTitle, text: foundUrl, note: leftover && leftover !== cleanTitle ? leftover : '', file: null };
+}
+
 export function youTubeThumbnail(id) {
   return `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
 }

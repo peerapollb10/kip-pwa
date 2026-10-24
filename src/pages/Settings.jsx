@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useKip } from '../context/KipContext.jsx';
-import { supabase } from '../lib/supabase.js';
+import { signInWith, signOut } from '../lib/api.js';
 import { Toggle, TypeBadge } from '../components/ui.jsx';
+import { GoogleButton, LineButton, UserAvatar } from '../components/AuthButtons.jsx';
 import CategoryManager from '../components/CategoryManager.jsx';
 import FeedbackModal from '../components/FeedbackModal.jsx';
+import InstallGuide from '../components/InstallGuide.jsx';
 import SupportLinks from '../components/SupportLinks.jsx';
 import { FREE_ITEM_LIMIT } from '../lib/pricing.js';
 import { getTheme, setTheme } from '../lib/theme.js';
@@ -23,14 +25,26 @@ function Section({ title, children }) {
 }
 
 export default function Settings() {
-  const { user, isGuest, isAdmin, migrating, profile, isPro, items, trash, saveProfile, setUpgradeOpen, showToast, enabledTypes, setTypeEnabled } = useKip();
+  const { account, isGuest, isAdmin, migrating, profile, isPro, items, trash, saveProfile, setUpgradeOpen, showToast, enabledTypes, setTypeEnabled } = useKip();
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [installOpen, setInstallOpen] = useState(false);
+  const [pending, setPending] = useState(null); // provider being signed in with
   const [theme, setThemeState] = useState(getTheme);
   const navigate = useNavigate();
 
   function chooseTheme(next) {
     setTheme(next);
     setThemeState(next);
+  }
+
+  async function signIn(provider) {
+    setPending(provider);
+    try {
+      await signInWith(provider, '/settings'); // navigates away on success
+    } catch {
+      showToast('เข้าสู่ระบบไม่สำเร็จ ลองใหม่อีกครั้ง', 'error');
+      setPending(null);
+    }
   }
 
   async function toggleQuickMode(next) {
@@ -49,17 +63,27 @@ export default function Settings() {
 
       <Section title="บัญชี">
         {isGuest ? (
-          <>
+          <div data-testid="account-guest">
             <p className="text-sm font-medium">โหมด Guest</p>
             <p className="mt-0.5 text-xs text-slate-500">ข้อมูลเก็บอยู่ในเครื่องนี้เท่านั้น เชื่อมต่อบัญชีเพื่อสำรองและซิงก์ — ข้อมูลเดิมจะย้ายขึ้นให้อัตโนมัติ</p>
-            <Link to="/login" state={{ from: '/settings' }} className="btn-primary mt-3 w-full">เชื่อมต่อด้วย Gmail / LINE</Link>
-          </>
-        ) : (
-          <>
-            <p className="text-sm">{user?.email?.endsWith('.invalid') ? `LINE · ${user.user_metadata?.full_name ?? ''}` : user?.email}</p>
-            {migrating && <p className="mt-1 text-xs text-brand-600">กำลังย้ายข้อมูลจากโหมด Guest...</p>}
-          </>
-        )}
+            <div className="mt-3 space-y-2">
+              <GoogleButton onClick={() => signIn('google')} pending={pending === 'google'} disabled={Boolean(pending)} />
+              <LineButton onClick={() => signIn('line')} pending={pending === 'line'} disabled={Boolean(pending)} />
+            </div>
+          </div>
+        ) : account ? (
+          <div className="flex items-center gap-3" data-testid="account-member">
+            <UserAvatar account={account} size="h-12 w-12" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium">{account.name}</p>
+              <p className="truncate text-xs text-slate-500">
+                เชื่อมต่อด้วย {account.providerName}
+                {account.email && ` · ${account.email}`}
+              </p>
+              {migrating && <p className="mt-1 text-xs text-brand-600">กำลังย้ายข้อมูลจากโหมด Guest...</p>}
+            </div>
+          </div>
+        ) : null}
         <div className="mt-3 flex items-center justify-between">
           <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${isPro ? 'bg-brand-600 text-white' : 'bg-slate-100 dark:bg-white/10'}`}>
             {isPro
@@ -81,6 +105,17 @@ export default function Settings() {
           </div>
           <Toggle checked={Boolean(isPro && profile?.quick_mode)} onChange={toggleQuickMode} />
         </div>
+      </Section>
+
+      <Section title="แอปบนมือถือ">
+        <button className="flex w-full items-center gap-3 text-left" onClick={() => setInstallOpen(true)} data-testid="open-install-guide">
+          <span className="text-2xl" aria-hidden="true">📲</span>
+          <div className="flex-1">
+            <p className="text-sm font-medium">ติดตั้ง Kip ลงหน้าจอโฮม</p>
+            <p className="text-xs text-slate-500">วิธี Add to Home Screen สำหรับ iPhone (Safari) และติดตั้งทันทีบน Android (Chrome)</p>
+          </div>
+          <span className="text-slate-400">›</span>
+        </button>
       </Section>
 
       <Section title="ประเภทคอนเทนต์เสริม">
@@ -136,8 +171,12 @@ export default function Settings() {
         <button
           className="btn-ghost w-full text-red-600"
           onClick={async () => {
-            await supabase.auth.signOut();
-            navigate('/', { replace: true });
+            try {
+              await signOut();
+              navigate('/', { replace: true });
+            } catch {
+              showToast('ออกจากระบบไม่สำเร็จ', 'error');
+            }
           }}
         >
           ออกจากระบบ
@@ -145,6 +184,7 @@ export default function Settings() {
       )}
 
       <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
+      <InstallGuide open={installOpen} onClose={() => setInstallOpen(false)} />
     </div>
   );
 }

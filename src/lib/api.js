@@ -1,6 +1,7 @@
-import { supabase, IMAGE_BUCKET } from './supabase.js';
+import { supabase, IMAGE_BUCKET, SLIP_BUCKET } from './supabase.js';
 import { compressToWebp } from './image.js';
 import { getYouTubeId, youTubeThumbnail, hostnameOf } from './content.js';
+import { AUTH_PROVIDERS } from './auth.js';
 
 export class LimitError extends Error {
   constructor() {
@@ -161,8 +162,9 @@ export async function migrateGuestData({ userId, guest, serverCategories }) {
     try {
       let image_path = null;
       if (it.image_url?.startsWith('data:')) {
-        const blob = await (await fetch(it.image_url)).blob();
-        image_path = await uploadImage(userId, blob, blob.type === 'image/webp' ? 'webp' : 'jpg');
+        // Guest images were compressed on save; this re-checks size/format and is a no-op when already optimal.
+        const { blob, ext } = await compressToWebp(await (await fetch(it.image_url)).blob());
+        image_path = await uploadImage(userId, blob, ext);
       }
       await insertItem(
         {
@@ -238,17 +240,24 @@ export async function sendFeedback({ type, message, rating }) {
 }
 
 // ── Auth ──
-export async function signInWithGoogle(from = '/') {
+// Provider settings live in lib/auth.js. LINE isn't a built-in Supabase provider → 'redirect' flow (api/auth/line.js).
+export async function signInWith(providerId, from = '/') {
+  const provider = AUTH_PROVIDERS[providerId];
+  if (!provider) throw new Error(`Unknown auth provider: ${providerId}`);
+  if (provider.flow === 'redirect') {
+    window.location.assign(`${provider.endpoint}?from=${encodeURIComponent(from)}`);
+    return;
+  }
   const { error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: { redirectTo: `${window.location.origin}${from}` },
+    provider: provider.id,
+    options: { redirectTo: `${window.location.origin}${from}`, queryParams: provider.queryParams },
   });
   if (error) throw error;
 }
 
-// LINE isn't a built-in Supabase provider → handled by /api/auth/line (see api/auth/line.js).
-export function signInWithLine(from = '/') {
-  window.location.assign(`/api/auth/line?from=${encodeURIComponent(from)}`);
+export async function signOut() {
+  const { error } = await supabase.auth.signOut();
+  if (error) throw error;
 }
 
 // ── Admin (RPCs check role = 'admin' server-side) ──
@@ -271,5 +280,48 @@ export async function adminSetPlan({ userId, tier, duration, note }) {
     p_duration: duration,
     p_note: note || null,
   });
+  raise(error);
+}
+
+// ── PromptPay slip payments (admin approves → Pro) ──
+async function withSlipUrls(slips) {
+  if (!slips?.length) return slips || [];
+  const { data } = await supabase.storage.from(SLIP_BUCKET).createSignedUrls(slips.map((s) => s.slip_path), 60 * 60);
+  const map = Object.fromEntries((data || []).map((d) => [d.path, d.signedUrl]));
+  return slips.map((s) => ({ ...s, slip_url: map[s.slip_path] }));
+}
+
+export async function getLatestSlip(userId) {
+  const { data, error } = await supabase
+    .from('payment_slips')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  raise(error);
+  return data;
+}
+
+// Upload the slip image, then record it as pending. The DB re-checks the amount against the live price.
+export async function submitPaymentSlip({ userId, interval, amount, file }) {
+  const { blob, ext } = await compressToWebp(file, 'slip');
+  const path = `${userId}/${crypto.randomUUID()}.${ext}`;
+  const { error: uploadError } = await supabase.storage.from(SLIP_BUCKET).upload(path, blob, { contentType: blob.type });
+  raise(uploadError);
+  const { data, error } = await supabase.rpc('submit_payment_slip', { p_interval: interval, p_amount: amount, p_slip_path: path });
+  if (error) await supabase.storage.from(SLIP_BUCKET).remove([path]);
+  raise(error);
+  return data;
+}
+
+export async function adminListSlips(status = 'pending') {
+  const { data, error } = await supabase.rpc('admin_list_slips', { p_status: status });
+  raise(error);
+  return withSlipUrls(data);
+}
+
+export async function adminReviewSlip({ id, approve, note }) {
+  const { error } = await supabase.rpc('admin_review_slip', { p_slip: id, p_approve: approve, p_note: note || null });
   raise(error);
 }

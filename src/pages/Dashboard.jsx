@@ -6,13 +6,16 @@ import ItemDetail from '../components/ItemDetail.jsx';
 import SaveSheet from '../components/SaveSheet.jsx';
 import SelectionBar from '../components/BulkActions.jsx';
 import { EmptyState } from '../components/ui.jsx';
+import { UserAvatar } from '../components/AuthButtons.jsx';
 import { FREE_ITEM_LIMIT, showItemCount } from '../lib/pricing.js';
 import { visibleItemTypes } from '../lib/content.js';
+import { useInstallPrompt } from '../lib/install.js';
+import InstallGuide, { dismissInstallHint, shouldShowInstallHint } from '../components/InstallGuide.jsx';
 
 const isEditable = (el) => el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
 
 export default function Dashboard() {
-  const { items, categories, loading, migrating, error, refresh, isPro, patchItem, enabledTypes } = useKip();
+  const { account, items, categories, loading, migrating, error, refresh, isPro, atLimit, canCreateItem, patchItem, enabledTypes } = useKip();
   const [query, setQuery] = useState('');
   const [favOnly, setFavOnly] = useState(false);
   const [types, setTypes] = useState([]); // multi-select; [] = all types
@@ -20,6 +23,9 @@ export default function Dashboard() {
   const [openId, setOpenId] = useState(null);
   const [composer, setComposer] = useState(null); // null = closed, {} = open
   const [dragging, setDragging] = useState(false);
+  const [installHint, setInstallHint] = useState(shouldShowInstallHint);
+  const [guideOpen, setGuideOpen] = useState(false);
+  const { installed } = useInstallPrompt();
   const q = useDeferredValue(query.trim().toLowerCase());
 
   const catMap = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories]);
@@ -36,6 +42,9 @@ export default function Dashboard() {
         .some((f) => f && f.toLowerCase().includes(q));
     });
   }, [items, favOnly, types, activeCategory, q, catMap]);
+
+  // Free plan at the limit: open the upgrade sheet instead of the save sheet.
+  const openComposer = (initial = {}) => canCreateItem() && setComposer(initial);
 
   const toggleType = (t) => setTypes((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
 
@@ -69,19 +78,19 @@ export default function Dashboard() {
       const text = e.clipboardData?.getData('text') || '';
       if (file || text) {
         e.preventDefault();
-        setComposer({ text, file });
+        if (canCreateItem()) setComposer({ text, file });
       }
     }
     window.addEventListener('paste', onPaste);
     return () => window.removeEventListener('paste', onPaste);
-  }, [composer]);
+  }, [composer, canCreateItem]);
 
   function onDrop(e) {
     e.preventDefault();
     setDragging(false);
     const file = [...(e.dataTransfer.files || [])].find((f) => f.type.startsWith('image/'));
     const text = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
-    if (file || text) setComposer({ text, file });
+    if (file || text) openComposer({ text, file });
   }
 
   const openItem = items.find((i) => i.id === openId) || null;
@@ -107,17 +116,27 @@ export default function Dashboard() {
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">⌕</span>
             <input className="input pl-8" type="search" placeholder="ค้นหา" value={query} onChange={(e) => setQuery(e.target.value)} />
           </div>
-          <Link
-            to="/settings"
-            aria-label="ตั้งค่า"
-            title="ตั้งค่า"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 transition hover:bg-brand-100 active:scale-95 dark:bg-brand-500/15 dark:text-brand-100 dark:hover:bg-brand-500/25"
-          >
-            <svg viewBox="0 0 24 24" className="h-[22px] w-[22px]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
-          </Link>
+          {/* Guest: login entry + gear · Member: profile photo (→ account & settings) */}
+          {account ? (
+            <Link to="/settings" aria-label={`บัญชี ${account.name} และตั้งค่า`} title={account.name} className="shrink-0 rounded-full transition active:scale-95" data-testid="member-avatar">
+              <UserAvatar account={account} />
+            </Link>
+          ) : (
+            <>
+              <Link to="/login" state={{ from: '/' }} className="btn-primary h-10 shrink-0 px-3 py-0" data-testid="guest-login">เข้าสู่ระบบ</Link>
+              <Link
+                to="/settings"
+                aria-label="ตั้งค่า"
+                title="ตั้งค่า"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 transition hover:bg-brand-100 active:scale-95 dark:bg-brand-500/15 dark:text-brand-100 dark:hover:bg-brand-500/25"
+              >
+                <svg viewBox="0 0 24 24" className="h-[22px] w-[22px]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              </Link>
+            </>
+          )}
         </div>
 
         {/* Type filter (multi-select) + favourites */}
@@ -158,6 +177,26 @@ export default function Dashboard() {
       <main className="mx-auto max-w-6xl px-4 pt-4">
         {migrating && (
           <div className="mb-3 rounded-2xl bg-brand-50 px-3 py-2.5 text-sm text-brand-700 dark:bg-brand-500/10 dark:text-brand-100">กำลังย้ายข้อมูลจากโหมด Guest ขึ้นบัญชี...</div>
+        )}
+        {installHint && !installed && (
+          <div className="card mb-4 flex items-center gap-3 p-3" data-testid="install-hint">
+            <img src="/icons/icon.svg" alt="" className="h-9 w-9 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold">ติดตั้ง Kip ลงหน้าจอโฮม</p>
+              <p className="text-xs text-slate-500">เปิดเร็วแบบแอป และแชร์ลิงก์จากแอปอื่นเข้ามาได้</p>
+            </div>
+            <button className="btn-primary shrink-0 px-3 py-1.5 text-sm" onClick={() => setGuideOpen(true)}>วิธีติดตั้ง</button>
+            <button
+              className="btn-ghost -mr-1 shrink-0 px-2 py-1 text-slate-400"
+              aria-label="ซ่อนคำแนะนำการติดตั้ง"
+              onClick={() => {
+                dismissInstallHint();
+                setInstallHint(false);
+              }}
+            >
+              ✕
+            </button>
+          </div>
         )}
         {!isPro && showItemCount(used) && (
           <Link to="/pricing" className="card mb-4 flex items-center gap-3 p-3 text-sm" data-testid="item-count-bar">
@@ -216,11 +255,14 @@ export default function Dashboard() {
       ) : (
       /* FAB */
       <button
-        onClick={() => setComposer({})}
-        className="fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-brand-600 text-3xl text-white shadow-lg shadow-brand-600/30 transition active:scale-95"
+        onClick={() => openComposer()}
+        className={`fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full text-3xl text-white shadow-lg transition active:scale-95 ${atLimit ? 'bg-slate-400 shadow-slate-400/30 dark:bg-slate-600' : 'bg-brand-600 shadow-brand-600/30'}`}
         aria-label="เพิ่มรายการใหม่"
+        title={atLimit ? `ครบ ${FREE_ITEM_LIMIT} รายการของแพ็กเกจฟรีแล้ว — อัปเกรดเป็น Pro เพื่อเซฟต่อ` : undefined}
+        data-testid="fab"
+        data-locked={atLimit || undefined}
       >
-        +
+        {atLimit ? <span className="text-2xl" aria-hidden="true">🔒</span> : '+'}
       </button>
       )}
 
@@ -234,6 +276,7 @@ export default function Dashboard() {
 
       <SaveSheet open={Boolean(composer)} initial={composer} onClose={() => setComposer(null)} />
       <ItemDetail item={openItem} onClose={() => setOpenId(null)} />
+      <InstallGuide open={guideOpen} onClose={() => setGuideOpen(false)} />
     </div>
   );
 }

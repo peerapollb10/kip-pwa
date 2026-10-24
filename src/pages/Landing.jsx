@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom';
 import InstallBanner from '../components/InstallBanner.jsx';
+import { UserAvatar } from '../components/AuthButtons.jsx';
+import { useKip } from '../context/KipContext.jsx';
 
 const FEATURES = [
   ['⤴️', 'แชร์ปุ๊บ เซฟปั๊บ', 'กดแชร์จาก YouTube, Facebook หรือเว็บไหนก็ได้ แล้วเลือกหมวดหมู่ได้ทันที'],
@@ -9,6 +11,7 @@ const FEATURES = [
 ];
 
 export default function Landing() {
+  const { account } = useKip();
   return (
     <div className="mx-auto max-w-5xl px-5 pb-16 pt-[max(1.25rem,env(safe-area-inset-top))]">
       <nav className="flex items-center justify-between">
@@ -17,7 +20,13 @@ export default function Landing() {
         </span>
         <div className="flex gap-1">
           <Link to="/pricing" className="btn-ghost">ราคา</Link>
-          <Link to="/login" className="btn-primary">เข้าสู่ระบบ</Link>
+          {account ? (
+            <Link to="/" className="btn-primary pl-1.5" data-testid="member-avatar">
+              <UserAvatar account={account} size="h-7 w-7" showProvider={false} /> เปิดคลังของฉัน
+            </Link>
+          ) : (
+            <Link to="/login" className="btn-primary">เข้าสู่ระบบ</Link>
+          )}
         </div>
       </nav>
 

@@ -6,6 +6,7 @@ import { compressToWebp } from '../lib/image.js';
 import { isPro as checkPro, FREE_ITEM_LIMIT } from '../lib/pricing.js';
 import { getEnabledTypes, setEnabledTypes } from '../lib/typePrefs.js';
 import { isExpired, isTrashed } from '../lib/trash.js';
+import { authStatus, describeUser } from '../lib/auth.js';
 
 const KipContext = createContext(null);
 
@@ -24,6 +25,7 @@ export function KipProvider({ children }) {
 
   const userId = session?.user?.id;
   const isGuest = session === null;
+  const account = useMemo(() => describeUser(session?.user), [session?.user]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -121,6 +123,13 @@ export function KipProvider({ children }) {
 
   const isPro = !isGuest && checkPro(profile);
   const atLimit = !isPro && items.length >= FREE_ITEM_LIMIT;
+
+  // Gate for every "create item" entry point (FAB, paste, drop, share): Free at 50 → upgrade sheet instead.
+  const canCreateItem = useCallback(() => {
+    if (!atLimit) return true;
+    setUpgradeOpen(true);
+    return false;
+  }, [atLimit]);
 
   const saveItem = useCallback(
     async (draft, categoryId) => {
@@ -284,6 +293,8 @@ export function KipProvider({ children }) {
     () => ({
       session,
       user: session?.user,
+      account,
+      authStatus: authStatus(session), // 'loading' | 'guest' | 'member'
       isGuest,
       isAdmin: profile?.role === 'admin' && !isGuest,
       profile,
@@ -296,6 +307,7 @@ export function KipProvider({ children }) {
       refresh,
       isPro,
       atLimit,
+      canCreateItem,
       saveItem,
       patchItem,
       patchItems,
@@ -313,7 +325,7 @@ export function KipProvider({ children }) {
       upgradeOpen,
       setUpgradeOpen,
     }),
-    [session, isGuest, profile, categories, items, trash, loading, migrating, error, refresh, isPro, atLimit, saveItem, patchItem, patchItems, trashItems, restoreItems, purgeItems, saveProfile, addCategory, editCategory, removeCategory, enabledTypes, setTypeEnabled, toast, showToast, upgradeOpen],
+    [session, account, isGuest, profile, categories, items, trash, loading, migrating, error, refresh, isPro, atLimit, canCreateItem, saveItem, patchItem, patchItems, trashItems, restoreItems, purgeItems, saveProfile, addCategory, editCategory, removeCategory, enabledTypes, setTypeEnabled, toast, showToast, upgradeOpen],
   );
 
   return <KipContext.Provider value={value}>{children}</KipContext.Provider>;

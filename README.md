@@ -24,6 +24,7 @@ React (Vite) + Tailwind · Supabase (DB/Auth/Storage/Edge Functions) · Stripe (
 
 ## Notes
 - **Guest Mode**: เปิดแอปใช้ได้ทันทีโดยไม่ล็อกอิน ข้อมูลเก็บใน localStorage (`kip.guest.v1`, รูปเป็น WebP data URL) — เมื่อล็อกอินด้วย Gmail/LINE จะ migrate ขึ้น Supabase อัตโนมัติ (หมวดจับคู่ตามชื่อ, รายการที่เกินโควตาฟรีจะค้างไว้ในเครื่อง)
+- **Auth providers**: ตั้งค่าที่ `src/lib/auth.js` (`AUTH_PROVIDERS`: `flow: 'supabase'` = Supabase OAuth, `'redirect'` = endpoint ของเราเอง) · ปุ่มแบรนด์ทางการอยู่ที่ `src/components/AuthButtons.jsx`
 - **LINE**: ไม่ใช่ provider ในตัวของ Supabase → `/api/auth/line` + `/api/auth/line-callback` ยืนยัน id_token กับ LINE แล้วสร้าง/หา user ด้วย service role และส่ง magic link เข้าสู่ระบบ ถ้า LINE ไม่ให้อีเมลจะใช้ `line_<userId>@line.kip.invalid`
 - **Pro** = `profiles.subscription_tier = 'pro'` และ (`pro_until` เป็น null = Lifetime หรือยังไม่หมดอายุ)
 - Free = 50 รายการ บังคับที่ DB trigger (`enforce_item_limit`) — ข้อมูลเดิมไม่ถูกลบ

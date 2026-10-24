@@ -3,8 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useKip } from '../context/KipContext.jsx';
 import SaveSheet from '../components/SaveSheet.jsx';
 import { Spinner } from '../components/ui.jsx';
-import { draftFromShare } from '../lib/content.js';
-import { fetchMetadata } from '../lib/api.js';
+import { composerFromShare } from '../lib/content.js';
 
 // Payload parked by the service worker (POST share target) or passed as query params
 // (GET — used by the iOS Shortcut, since iOS has no Web Share Target support).
@@ -30,9 +29,8 @@ async function readSharedPayload(params) {
 export default function Share() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const { profile, isPro, saveItem, showToast, enabledTypes } = useKip();
+  const { profile, canCreateItem } = useKip();
   const [payload, setPayload] = useState(null);
-  const [quickSaving, setQuickSaving] = useState(false);
   const handled = useRef(false);
 
   useEffect(() => {
@@ -42,31 +40,19 @@ export default function Share() {
     (async () => {
       const shared = await readSharedPayload(params);
       if (!shared.file && !shared.text && !shared.url) return navigate('/', { replace: true });
-
-      // Quick Mode (Pro only): skip the category sheet, save without a category (category_id null).
-      if (isPro && profile.quick_mode) {
-        setQuickSaving(true);
-        try {
-          const draft = shared.file
-            ? { type: 'image', file: shared.file, title: shared.title, note: shared.text || null }
-            : draftFromShare(shared, enabledTypes);
-          if (draft.url) Object.assign(draft, await fetchMetadata(draft.url), shared.title ? { title: shared.title } : {});
-          await saveItem(draft, null);
-          showToast('เซฟแล้ว ✓');
-        } catch (e) {
-          if (e.code !== 'FREE_LIMIT_REACHED') showToast('เซฟไม่สำเร็จ', 'error');
-        }
-        return navigate('/', { replace: true });
-      }
-      setPayload(shared);
+      // Free plan at the limit: show the upgrade sheet on the dashboard instead of the save sheet.
+      if (!canCreateItem()) return navigate('/', { replace: true });
+      // Always open the composer pre-filled: the user reviews title / category / note and taps
+      // save themselves — nothing is saved in the background.
+      setPayload({ ...composerFromShare(shared), shared: true });
     })();
-  }, [profile, isPro, params, navigate, saveItem, showToast, enabledTypes]);
+  }, [profile, canCreateItem, params, navigate]);
 
-  if (!payload || quickSaving) {
+  if (!payload) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 text-sm text-slate-500">
         <Spinner />
-        {quickSaving ? 'กำลังเซฟ...' : 'กำลังเตรียมข้อมูล...'}
+        กำลังเตรียมข้อมูล...
       </div>
     );
   }

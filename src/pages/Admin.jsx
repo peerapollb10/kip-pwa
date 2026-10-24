@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useKip } from '../context/KipContext.jsx';
-import { adminSearchUsers, adminSetPlan, adminStats } from '../lib/api.js';
+import { adminListSlips, adminReviewSlip, adminSearchUsers, adminSetPlan, adminStats } from '../lib/api.js';
 import { EmptyState, Spinner } from '../components/ui.jsx';
 
 const DURATIONS = [
@@ -117,7 +117,138 @@ function UserRow({ user, onChanged }) {
   );
 }
 
+const SLIP_FILTERS = [
+  ['pending', 'รออนุมัติ'],
+  ['approved', 'อนุมัติแล้ว'],
+  ['rejected', 'ปฏิเสธแล้ว'],
+];
+
+function SlipCard({ slip, onReviewed }) {
+  const { showToast } = useKip();
+  const [busy, setBusy] = useState(null); // 'approve' | 'reject'
+  const [rejecting, setRejecting] = useState(false);
+  const [note, setNote] = useState('');
+  const pending = slip.status === 'pending';
+
+  async function review(approve) {
+    setBusy(approve ? 'approve' : 'reject');
+    try {
+      await adminReviewSlip({ id: slip.id, approve, note: note.trim() });
+      showToast(approve ? 'อนุมัติแล้ว — ผู้ใช้เป็น Pro ✓' : 'ปฏิเสธสลิปแล้ว');
+      onReviewed();
+    } catch (e) {
+      showToast(`ทำรายการไม่สำเร็จ: ${e.message}`, 'error');
+      setBusy(null);
+    }
+  }
+
+  return (
+    <li className="flex gap-3 py-3" data-testid="slip-row">
+      <a href={slip.slip_url} target="_blank" rel="noreferrer" className="block h-28 w-20 shrink-0 overflow-hidden rounded-lg bg-slate-100 dark:bg-white/10" title="เปิดสลิปขนาดเต็ม">
+        {slip.slip_url ? <img src={slip.slip_url} alt="สลิปการโอน" className="h-full w-full object-cover" loading="lazy" /> : <span className="flex h-full items-center justify-center text-xs text-slate-400">ไม่มีรูป</span>}
+      </a>
+      <div className="min-w-0 flex-1">
+        <p className="text-xl font-bold tabular-nums">฿{Number(slip.amount).toLocaleString('th-TH')}</p>
+        <p className="truncate text-sm font-medium">{slip.display_name || slip.email || '(ไม่ทราบชื่อ)'}</p>
+        {slip.display_name && slip.email && <p className="truncate text-xs text-slate-500">{slip.email}</p>}
+        <p className="mt-0.5 text-xs text-slate-500">
+          {slip.billing_interval === 'month' ? 'รายเดือน' : 'รายปี'} · Tier {slip.tier} · {new Date(slip.created_at).toLocaleString('th-TH')}
+        </p>
+        {!pending && (
+          <p className="mt-1 text-xs">
+            <span className={`rounded-full px-2 py-0.5 font-semibold ${slip.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+              {slip.status === 'approved' ? 'อนุมัติแล้ว' : 'ปฏิเสธแล้ว'}
+            </span>
+            {slip.review_note && <span className="ml-1.5 italic text-slate-500">📝 {slip.review_note}</span>}
+          </p>
+        )}
+        {pending && rejecting && (
+          <input className="input mt-2 py-1.5 text-sm" placeholder="เหตุผล (แสดงให้ผู้ใช้เห็น) เช่น ยอดไม่ตรง" value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} autoFocus />
+        )}
+        {pending && (
+          <div className="mt-2 flex gap-2">
+            {rejecting ? (
+              <>
+                <button className="btn-outline flex-1 border-red-300 px-3 py-1.5 text-xs text-red-600" disabled={Boolean(busy)} onClick={() => review(false)}>
+                  {busy === 'reject' ? <Spinner /> : 'ยืนยันปฏิเสธ'}
+                </button>
+                <button className="btn-ghost px-3 py-1.5 text-xs" disabled={Boolean(busy)} onClick={() => setRejecting(false)}>ยกเลิก</button>
+              </>
+            ) : (
+              <>
+                <button className="btn-primary flex-1 px-3 py-1.5 text-xs" disabled={Boolean(busy)} onClick={() => review(true)}>
+                  {busy === 'approve' ? <Spinner className="border-white border-t-transparent" /> : '✓ อนุมัติ'}
+                </button>
+                <button className="btn-outline flex-1 px-3 py-1.5 text-xs text-red-600" disabled={Boolean(busy)} onClick={() => setRejecting(true)}>
+                  ✕ ปฏิเสธ
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </li>
+  );
+}
+
+function SlipReview({ onChanged }) {
+  const [filter, setFilter] = useState('pending');
+  const [slips, setSlips] = useState(null);
+  const [error, setError] = useState(null);
+
+  const load = useCallback(async (status) => {
+    setSlips(null);
+    setError(null);
+    try {
+      setSlips(await adminListSlips(status));
+    } catch (e) {
+      setError(e.message);
+    }
+  }, []);
+
+  useEffect(() => {
+    load(filter);
+  }, [load, filter]);
+
+  return (
+    <>
+      <div className="mb-3 flex gap-2" role="radiogroup" aria-label="สถานะสลิป">
+        {SLIP_FILTERS.map(([s, label]) => (
+          <button key={s} role="radio" aria-checked={filter === s} className={filter === s ? 'chip-on' : 'chip-off'} onClick={() => setFilter(s)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <section className="card px-4">
+        {error ? (
+          <EmptyState icon="⚠️" title="โหลดสลิปไม่สำเร็จ">
+            {error} <button className="btn-ghost px-2 text-xs" onClick={() => load(filter)}>ลองใหม่</button>
+          </EmptyState>
+        ) : slips === null ? (
+          <Spinner full />
+        ) : !slips.length ? (
+          <EmptyState icon="🧾" title={filter === 'pending' ? 'ไม่มีสลิปรออนุมัติ' : 'ไม่มีรายการ'}>สลิปที่ผู้ใช้แนบจากหน้าอัปเกรดจะแสดงที่นี่</EmptyState>
+        ) : (
+          <ul className="divide-y divide-slate-100 dark:divide-white/5">
+            {slips.map((s) => (
+              <SlipCard
+                key={s.id}
+                slip={s}
+                onReviewed={() => {
+                  load(filter);
+                  onChanged();
+                }}
+              />
+            ))}
+          </ul>
+        )}
+      </section>
+    </>
+  );
+}
+
 export default function Admin() {
+  const [tab, setTab] = useState('slips');
   const [stats, setStats] = useState(null);
   const [statsError, setStatsError] = useState(null);
   const [query, setQuery] = useState('');
@@ -172,40 +303,62 @@ export default function Admin() {
         </div>
       )}
 
-      {/* Search */}
-      <form
-        className="mb-3 flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          search(query);
-        }}
-      >
-        <input className="input flex-1" type="search" placeholder="ค้นหาด้วย Email หรือ User ID" value={query} onChange={(e) => setQuery(e.target.value)} />
-        <button className="btn-primary" disabled={searching}>{searching ? <Spinner className="border-white border-t-transparent" /> : 'ค้นหา'}</button>
-      </form>
+      <div className="mb-4 inline-flex rounded-xl bg-slate-100 p-1 text-sm dark:bg-white/10" role="tablist">
+        {[
+          ['slips', '🧾 ตรวจสลิป'],
+          ['users', '👤 ผู้ใช้'],
+        ].map(([t, label]) => (
+          <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={`rounded-lg px-4 py-1.5 font-medium ${tab === t ? 'bg-white shadow dark:bg-white/20' : 'text-slate-500'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
 
-      <section className="card px-4">
-        {searchError ? (
-          <EmptyState icon="⚠️" title="ค้นหาไม่สำเร็จ">{searchError}</EmptyState>
-        ) : results === null ? (
-          <Spinner full />
-        ) : !results.length ? (
-          <EmptyState icon="🔍" title="ไม่พบผู้ใช้">ลองค้นหาด้วยอีเมลบางส่วน หรือ User ID แบบเต็ม</EmptyState>
-        ) : (
-          <ul className="divide-y divide-slate-100 dark:divide-white/5">
-            {results.map((u) => (
-              <UserRow
-                key={u.id}
-                user={u}
-                onChanged={() => {
-                  search(query);
-                  loadStats();
-                }}
-              />
-            ))}
-          </ul>
-        )}
-      </section>
+      {tab === 'slips' ? (
+        <SlipReview
+          onChanged={() => {
+            loadStats();
+            search(query);
+          }}
+        />
+      ) : (
+        <>
+          {/* Search */}
+          <form
+            className="mb-3 flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              search(query);
+            }}
+          >
+            <input className="input flex-1" type="search" placeholder="ค้นหาด้วย Email หรือ User ID" value={query} onChange={(e) => setQuery(e.target.value)} />
+            <button className="btn-primary" disabled={searching}>{searching ? <Spinner className="border-white border-t-transparent" /> : 'ค้นหา'}</button>
+          </form>
+
+          <section className="card px-4">
+            {searchError ? (
+              <EmptyState icon="⚠️" title="ค้นหาไม่สำเร็จ">{searchError}</EmptyState>
+            ) : results === null ? (
+              <Spinner full />
+            ) : !results.length ? (
+              <EmptyState icon="🔍" title="ไม่พบผู้ใช้">ลองค้นหาด้วยอีเมลบางส่วน หรือ User ID แบบเต็ม</EmptyState>
+            ) : (
+              <ul className="divide-y divide-slate-100 dark:divide-white/5">
+                {results.map((u) => (
+                  <UserRow
+                    key={u.id}
+                    user={u}
+                    onChanged={() => {
+                      search(query);
+                      loadStats();
+                    }}
+                  />
+                ))}
+              </ul>
+            )}
+          </section>
+        </>
+      )}
     </div>
   );
 }

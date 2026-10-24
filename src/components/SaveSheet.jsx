@@ -25,7 +25,7 @@ export default function SaveSheet({ open, initial, onClose, onSaved }) {
     setRaw(text);
     setFile(initial?.file || null);
     setTitle(initial?.title || '');
-    setNote('');
+    setNote(initial?.note || '');
     setMeta(null);
     setCategoryId(null);
   }, [open, initial]);
@@ -79,7 +79,8 @@ export default function SaveSheet({ open, initial, onClose, onSaved }) {
       onSaved?.(item);
       onClose();
     } catch (e) {
-      if (e.code === 'QUOTA_EXCEEDED') showToast('พื้นที่ในเครื่องเต็ม — เข้าสู่ระบบด้วย Gmail/LINE เพื่อเก็บบนคลาวด์', 'error');
+      if (e.code === 'IMAGE_UNSUPPORTED') showToast('อ่านไฟล์รูปนี้ไม่ได้ ลองใช้ไฟล์ JPG หรือ PNG', 'error');
+      else if (e.code === 'QUOTA_EXCEEDED') showToast('พื้นที่ในเครื่องเต็ม — เข้าสู่ระบบด้วย Gmail/LINE เพื่อเก็บบนคลาวด์', 'error');
       else if (e.code !== 'FREE_LIMIT_REACHED') showToast('เซฟไม่สำเร็จ ลองใหม่อีกครั้ง', 'error');
     } finally {
       setSaving(false);
@@ -106,6 +107,12 @@ export default function SaveSheet({ open, initial, onClose, onSaved }) {
         </div>
       }
     >
+      {initial?.shared && (
+        <p className="mb-3 rounded-xl bg-brand-50 px-3 py-2 text-xs text-brand-700 dark:bg-brand-500/10 dark:text-brand-100" data-testid="shared-hint">
+          ได้รับลิงก์จากแอปอื่นแล้ว — ตรวจสอบชื่อเรื่อง หมวดหมู่ หรือเพิ่มโน้ต แล้วกด “เซฟ”
+        </p>
+      )}
+
       {/* Input */}
       {file ? (
         <div className="relative mb-3 overflow-hidden rounded-2xl">
