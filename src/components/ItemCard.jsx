@@ -22,7 +22,10 @@ const titleOf = (item) => item.title || item.note?.split('\n')[0] || hostnameOf(
 export function GridCard({ item, category, onOpen, onToggleFavorite }) {
   const thumb = thumbOf(item);
   return (
-    <article onClick={() => onOpen(item)} className="card mb-3 cursor-pointer break-inside-avoid overflow-hidden transition hover:shadow-md">
+    <article onClick={() => onOpen(item)} className="card relative mb-3 cursor-pointer break-inside-avoid overflow-hidden transition hover:shadow-md">
+      <span className="pointer-events-none absolute left-2 top-2 z-10 rounded-md shadow-md ring-1 ring-white/70 dark:ring-black/30">
+        <TypeBadge type={item.type} />
+      </span>
       {thumb && (
         <div className="relative">
           <img src={thumb} alt="" loading="lazy" className="w-full object-cover" />
@@ -33,20 +36,17 @@ export function GridCard({ item, category, onOpen, onToggleFavorite }) {
           )}
         </div>
       )}
-      <div className="p-3">
-        <div className="mb-1.5 flex items-center justify-between">
-          <TypeBadge type={item.type} />
-          <Star on={item.is_favorite} onClick={onToggleFavorite} />
+      <div className={`p-3 ${thumb ? '' : 'pt-9'}`}>
+        <div className="flex items-start gap-1">
+          <h3 className="line-clamp-3 min-w-0 flex-1 text-sm font-medium leading-snug">{titleOf(item)}</h3>
+          <span className="-mr-1.5 -mt-1.5 shrink-0">
+            <Star on={item.is_favorite} onClick={onToggleFavorite} />
+          </span>
         </div>
-        <h3 className="line-clamp-3 text-sm font-medium leading-snug">{titleOf(item)}</h3>
         {item.type === 'text' && item.note && item.note !== titleOf(item) && (
           <p className="mt-1 line-clamp-4 whitespace-pre-line text-xs text-slate-500 dark:text-slate-400">{item.note}</p>
         )}
-        {(category || item.content_url) && (
-          <p className="mt-2 truncate text-[11px] text-slate-400">
-            {[category && `${category.emoji ?? ''} ${category.name}`.trim(), item.content_url && hostnameOf(item.content_url)].filter(Boolean).join(' · ')}
-          </p>
-        )}
+        {category && <p className="mt-2 truncate text-[11px] text-slate-400">{`${category.emoji ?? ''} ${category.name}`.trim()}</p>}
       </div>
     </article>
   );
@@ -61,9 +61,7 @@ export function ListRow({ item, category, onOpen, onToggleFavorite }) {
       </div>
       <div className="min-w-0 flex-1">
         <h3 className="truncate text-sm font-medium">{titleOf(item)}</h3>
-        <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-          {[category?.name, item.content_url && hostnameOf(item.content_url)].filter(Boolean).join(' · ')}
-        </p>
+        {category && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{category.name}</p>}
       </div>
       <Star on={item.is_favorite} onClick={onToggleFavorite} />
     </article>
