@@ -16,10 +16,14 @@ const OPEN_IN = {
 export default function ItemDetail({ item, onClose }) {
   const { patchItem, removeItem, showToast } = useKip();
   const [note, setNote] = useState('');
+  const [title, setTitle] = useState('');
+  const [editingTitle, setEditingTitle] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     setNote(item?.note || '');
+    setTitle(item?.title || '');
+    setEditingTitle(false);
     setConfirmDelete(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item?.id]);
@@ -41,11 +45,24 @@ export default function ItemDetail({ item, onClose }) {
     if ((item.note || '') !== note) patchItem(item.id, { note: note || null });
   }
 
+  function saveTitle() {
+    const next = title.trim();
+    if ((item.title || '') !== next) patchItem(item.id, { title: next || null });
+    setTitle(next);
+    setEditingTitle(false);
+  }
+
+  function cancelTitle() {
+    setTitle(item.title || '');
+    setEditingTitle(false);
+  }
+
   return (
     <Sheet
       open={Boolean(item)}
       onClose={() => {
         saveNote();
+        if (editingTitle) saveTitle();
         onClose();
       }}
       title={<TypeBadge type={item.type} />}
@@ -86,7 +103,34 @@ export default function ItemDetail({ item, onClose }) {
         )
       )}
 
-      {item.title && <h2 className="text-lg font-semibold leading-snug">{item.title}</h2>}
+      {editingTitle ? (
+        <div className="flex items-center gap-2">
+          <input
+            className="input flex-1"
+            value={title}
+            autoFocus
+            placeholder="ชื่อเรื่อง"
+            aria-label="ชื่อเรื่อง"
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') saveTitle();
+              if (e.key === 'Escape') {
+                e.stopPropagation();
+                cancelTitle();
+              }
+            }}
+          />
+          <button type="button" className="btn-ghost" onClick={cancelTitle}>ยกเลิก</button>
+          <button type="button" className="btn-primary" onClick={saveTitle}>บันทึก</button>
+        </div>
+      ) : item.title ? (
+        <div className="flex items-start gap-2">
+          <h2 className="flex-1 text-lg font-semibold leading-snug">{item.title}</h2>
+          <button type="button" className="btn-ghost shrink-0 px-2 py-1 text-sm" onClick={() => setEditingTitle(true)} aria-label="แก้ไขชื่อเรื่อง" title="แก้ไขชื่อเรื่อง">✏️</button>
+        </div>
+      ) : (
+        <button type="button" className="text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300" onClick={() => setEditingTitle(true)}>✏️ เพิ่มชื่อเรื่อง</button>
+      )}
       {item.content_url && <p className="mt-0.5 truncate text-xs text-slate-500">{item.site_name || hostnameOf(item.content_url)}</p>}
       {item.description && <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{item.description}</p>}
 

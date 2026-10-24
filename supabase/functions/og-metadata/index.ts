@@ -10,6 +10,8 @@ const CORS = {
 };
 const MAX_BYTES = 512 * 1024;
 const UA = 'Mozilla/5.0 (compatible; KipBot/1.0; +https://kip.app)';
+// Facebook serves a login wall to unknown bots but full OG tags (incl. og:image) to its own crawler.
+const FB_UA = 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)';
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
@@ -43,7 +45,9 @@ async function assertPublicUrl(raw: string): Promise<URL> {
 }
 
 const decode = (s?: string | null) =>
-  s?.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;|&#x27;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim() || null;
+  s?.replace(/&#x([\da-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
+    .replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;|&#x27;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim() || null;
 
 function metaTag(html: string, key: string) {
   const tag = html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${key}["'][^>]*>`, 'i'))?.[0];
@@ -101,7 +105,8 @@ async function fromHtml(url: string) {
   let res: Response | undefined;
   // Follow redirects manually so every hop passes the SSRF check.
   for (let hop = 0; hop < 4; hop++) {
-    res = await fetch(current, { redirect: 'manual', signal: AbortSignal.timeout(6000), headers: { 'User-Agent': UA, Accept: 'text/html' } });
+    const headers = { 'User-Agent': isFacebook(current.href) ? FB_UA : UA, Accept: 'text/html' };
+    res = await fetch(current, { redirect: 'manual', signal: AbortSignal.timeout(6000), headers });
     const loc = res.headers.get('location');
     if (res.status >= 300 && res.status < 400 && loc) {
       await res.body?.cancel();
