@@ -5,7 +5,7 @@ React (Vite) + Tailwind · Supabase (DB/Auth/Storage/Edge Functions) · Stripe (
 ## Setup
 1. `npm install`
 2. Supabase
-   - รัน `supabase/migrations/0001_init.sql` → `0002_spec_alignment.sql` → `0003_no_default_categories.sql` ใน SQL Editor (หรือ `supabase db push`)
+   - รัน `supabase/migrations/0001_init.sql` → `0002_spec_alignment.sql` → `0003_no_default_categories.sql` → `0004_drop_seeded_categories.sql` ใน SQL Editor (หรือ `supabase db push`)
    - Auth → เปิด Google provider, ตั้ง Site URL / Redirect URLs เป็นโดเมน Vercel (รวม `/**`)
    - Edge Function: `supabase functions deploy og-metadata` (ดึง OG metadata แทน browser เพื่อเลี่ยง CORS)
    - ตั้ง admin: `update profiles set role = 'admin' where email = 'you@gmail.com';`
@@ -30,6 +30,8 @@ React (Vite) + Tailwind · Supabase (DB/Auth/Storage/Edge Functions) · Stripe (
 - หมวดหมู่: ไม่มีหมวดเริ่มต้นและไม่มี Inbox — ผู้ใช้สร้างเอง (Settings หรือปุ่ม ＋ ตอนเซฟ/ในการ์ด), ไม่เลือกหมวด = `category_id` null · แถบกรองหมวดซ่อนจนกว่าจะมีหมวดแรก
 - Quick Mode (Pro): ข้ามหน้าเลือกหมวด เซฟแบบไม่มีหมวด (null)
 - ประเภท: `link` (Web Link), `youtube`, `facebook`, `instagram`, `tiktok`, `document`, `image`, `text` (โน้ต) — Filter ประเภทเลือกได้หลายอัน
+  - `instagram` / `tiktok` / `document` ปิดเป็นค่าเริ่มต้น เปิดได้ใน Settings → "ประเภทคอนเทนต์เสริม" (`localStorage` `kip.types`, ต่ออุปกรณ์) — ตอนปิดอยู่จะไม่แสดงใน Filter และลิงก์ประเภทนั้นเซฟเป็น `link`
+  - หมวดหมู่ที่ระบบเคย seed ไว้ (เช่น 'ทั่วไป') ถูกลบอัตโนมัติถ้ายังว่าง (Guest: ตอนโหลด, บัญชี: migration 0004)
 - ธีม: Light เป็นค่าเริ่มต้น สลับ Dark ได้ใน Settings (`localStorage` `kip.theme`, Tailwind `darkMode: 'class'`)
 - แถบจำนวนรายการ x/50 แสดงเฉพาะเมื่อ > 40 รายการ (`ITEM_COUNT_THRESHOLD`)
 - Admin: `/admin` — ค้นหา user (email/ID), Manual Override (Pro/Free + 1 เดือน/1 ปี/Lifetime + note), สถิติ (ผู้ใช้, Pro, ยอดขายจากตาราง `payments`, Storage)

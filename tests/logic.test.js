@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getPricingStatus, resolveCheckoutPrice, isPro, showItemCount } from '../src/lib/pricing.js';
 import { detectPlatform } from '../src/lib/device.js';
-import { draftFromShare, getYouTubeId, detectType, ITEM_TYPES } from '../src/lib/content.js';
+import { draftFromShare, getYouTubeId, detectType, ITEM_TYPES, visibleItemTypes } from '../src/lib/content.js';
+import { getEnabledTypes, setEnabledTypes } from '../src/lib/typePrefs.js';
 import { loadGuest, saveGuest, clearGuest, hasGuestData, newGuestItem, newGuestCategory } from '../src/lib/guestStore.js';
 import { getTheme } from '../src/lib/theme.js';
 import { safePath, emailForLine } from '../api/_lib/line.js';
@@ -68,6 +69,26 @@ test('guest store: no default categories, uncategorised = null, detects real dat
   const legacy = ['ความรู้ / บทความ', 'บันเทิง / คลิปวิดีโอ', 'งาน / โปรเจกต์', 'ช้อปปิ้ง / ของที่อยากได้', 'ทั่วไป'];
   saveGuest({ ...g, categories: legacy.map((name, i) => newGuestCategory(name, null, i)) }, s);
   assert.equal(hasGuestData(s), false);
+  assert.deepEqual(loadGuest(s).categories, []); // empty seeded categories are dropped on load
+
+  // ...but a seeded category that holds an item is kept.
+  const kept = newGuestCategory('ทั่วไป', '📌', 0);
+  saveGuest({ ...g, categories: [kept], items: [newGuestItem({ type: 'text', note: 'x' }, kept.id)] }, s);
+  assert.deepEqual(loadGuest(s).categories.map((c) => c.name), ['ทั่วไป']);
+});
+
+test('optional content types are off by default', () => {
+  const s = memoryStorage();
+  assert.deepEqual(getEnabledTypes(s), []);
+  assert.deepEqual(visibleItemTypes([]).map(([t]) => t), ['facebook', 'text', 'image', 'youtube', 'link']);
+  assert.equal(detectType({ url: 'https://www.instagram.com/p/Cxyz/' }, []), 'link');
+  assert.equal(draftFromShare({ text: 'https://vt.tiktok.com/ZSabc/' }, []).type, 'link');
+
+  setEnabledTypes(['tiktok', 'bogus'], s);
+  assert.deepEqual(getEnabledTypes(s), ['tiktok']);
+  assert.deepEqual(visibleItemTypes(['tiktok']).map(([t]) => t).slice(-1), ['tiktok']);
+  assert.equal(detectType({ url: 'https://vt.tiktok.com/ZSabc/' }, ['tiktok']), 'tiktok');
+  assert.equal(detectType({ url: 'https://example.com/a.pdf' }, ['tiktok']), 'link');
 });
 
 test('item count bar only above 40 items', () => {

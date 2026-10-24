@@ -58,18 +58,19 @@ export function isDocumentUrl(url) {
   return false;
 }
 
-export function detectType({ url, file } = {}) {
+// Optional types are off until switched on in Settings; while off they save as a plain link.
+export const OPTIONAL_TYPES = ['instagram', 'tiktok', 'document'];
+
+export function detectType({ url, file } = {}, enabledOptional = OPTIONAL_TYPES) {
   if (file) return 'image';
   if (!url) return 'text';
   if (getYouTubeId(url)) return 'youtube';
   if (isFacebookUrl(url)) return 'facebook';
-  if (isInstagramUrl(url)) return 'instagram';
-  if (isTikTokUrl(url)) return 'tiktok';
-  if (isDocumentUrl(url)) return 'document';
-  return 'link';
+  const optional = isInstagramUrl(url) ? 'instagram' : isTikTokUrl(url) ? 'tiktok' : isDocumentUrl(url) ? 'document' : null;
+  return optional && enabledOptional.includes(optional) ? optional : 'link';
 }
 
-// Order shown in the Dashboard type filter.
+// Order shown in the Dashboard type filter (optional types only when enabled).
 export const ITEM_TYPES = [
   ['facebook', 'Facebook'],
   ['text', 'โน้ต'],
@@ -81,12 +82,15 @@ export const ITEM_TYPES = [
   ['document', 'Document'],
 ];
 
+export const visibleItemTypes = (enabledOptional) =>
+  ITEM_TYPES.filter(([t]) => !OPTIONAL_TYPES.includes(t) || enabledOptional.includes(t));
+
 // Normalise Web Share Target params ({title, text, url}) into a draft item.
 // Many Android apps put the URL inside `text` rather than `url`.
-export function draftFromShare({ title = '', text = '', url = '' } = {}) {
+export function draftFromShare({ title = '', text = '', url = '' } = {}, enabledOptional = OPTIONAL_TYPES) {
   const foundUrl = url || extractUrl(text) || extractUrl(title);
   const leftover = foundUrl ? text.replace(foundUrl, '').trim() : text.trim();
-  const type = detectType({ url: foundUrl });
+  const type = detectType({ url: foundUrl }, enabledOptional);
   return {
     type,
     url: foundUrl || null,

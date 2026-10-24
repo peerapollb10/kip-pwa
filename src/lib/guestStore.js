@@ -16,10 +16,17 @@ function seed() {
   };
 }
 
+// Older vaults still carry the seeded categories; drop the ones nothing was filed into.
+function dropEmptySeedCategories(state) {
+  const seeded = LEGACY_SEED_NAMES.split('|');
+  const used = new Set(state.items.map((i) => i.category_id));
+  return { ...state, categories: state.categories.filter((c) => !seeded.includes(c.name) || used.has(c.id)) };
+}
+
 export function loadGuest(storage = globalThis.localStorage) {
   try {
     const raw = storage.getItem(KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) return dropEmptySeedCategories(JSON.parse(raw));
   } catch {
     /* corrupted → reseed */
   }

@@ -9,7 +9,7 @@ import CategoryPicker from './CategoryPicker.jsx';
 // Bottom sheet for saving: pick a category at save time.
 // `initial` may contain {title, text, url, file}; if empty, it acts as a composer.
 export default function SaveSheet({ open, initial, onClose, onSaved }) {
-  const { saveItem, isPro, items, showToast } = useKip();
+  const { saveItem, isPro, items, showToast, enabledTypes } = useKip();
   const [raw, setRaw] = useState('');
   const [file, setFile] = useState(null);
   const [meta, setMeta] = useState(null);
@@ -32,8 +32,8 @@ export default function SaveSheet({ open, initial, onClose, onSaved }) {
 
   const draft = useMemo(() => {
     if (file) return { type: 'image', url: null, note: raw.trim() || null };
-    return draftFromShare({ text: raw });
-  }, [raw, file]);
+    return draftFromShare({ text: raw }, enabledTypes);
+  }, [raw, file, enabledTypes]);
 
   // Debounced metadata lookup for URLs
   useEffect(() => {

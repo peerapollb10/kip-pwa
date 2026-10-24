@@ -6,12 +6,12 @@ import ItemDetail from '../components/ItemDetail.jsx';
 import SaveSheet from '../components/SaveSheet.jsx';
 import { EmptyState } from '../components/ui.jsx';
 import { FREE_ITEM_LIMIT, showItemCount } from '../lib/pricing.js';
-import { ITEM_TYPES } from '../lib/content.js';
+import { visibleItemTypes } from '../lib/content.js';
 
 const isEditable = (el) => el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
 
 export default function Dashboard() {
-  const { items, categories, loading, migrating, error, refresh, isGuest, isPro, patchItem } = useKip();
+  const { items, categories, loading, migrating, error, refresh, isGuest, isPro, patchItem, enabledTypes } = useKip();
   const [query, setQuery] = useState('');
   const [favOnly, setFavOnly] = useState(false);
   const [types, setTypes] = useState([]); // multi-select; [] = all types
@@ -112,7 +112,7 @@ export default function Dashboard() {
           <button className={favOnly ? 'chip-on' : 'chip-off'} aria-pressed={favOnly} onClick={() => setFavOnly((v) => !v)}>
             ⭐ รายการโปรด
           </button>
-          {ITEM_TYPES.map(([t, label]) => (
+          {visibleItemTypes(enabledTypes).map(([t, label]) => (
             <button key={t} className={types.includes(t) ? 'chip-on' : 'chip-off'} aria-pressed={types.includes(t)} onClick={() => toggleType(t)}>
               {types.includes(t) && '✓ '}
               {label}

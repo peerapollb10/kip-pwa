@@ -4,6 +4,7 @@ import * as api from '../lib/api.js';
 import * as guestStore from '../lib/guestStore.js';
 import { compressToWebp } from '../lib/image.js';
 import { isPro as checkPro, FREE_ITEM_LIMIT } from '../lib/pricing.js';
+import { getEnabledTypes, setEnabledTypes } from '../lib/typePrefs.js';
 
 const KipContext = createContext(null);
 
@@ -17,6 +18,7 @@ export function KipProvider({ children }) {
   const [toast, setToast] = useState(null);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [migrating, setMigrating] = useState(false);
+  const [enabledTypes, setEnabledTypesState] = useState(getEnabledTypes); // optional content types switched on
   const migrationRan = useRef(false);
 
   const userId = session?.user?.id;
@@ -210,6 +212,14 @@ export function KipProvider({ children }) {
     [isGuest, commitGuest],
   );
 
+  const setTypeEnabled = useCallback((type, on) => {
+    setEnabledTypesState((prev) => {
+      const next = on ? [...new Set([...prev, type])] : prev.filter((t) => t !== type);
+      setEnabledTypes(next);
+      return next;
+    });
+  }, []);
+
   const value = useMemo(
     () => ({
       session,
@@ -232,12 +242,14 @@ export function KipProvider({ children }) {
       addCategory,
       editCategory,
       removeCategory,
+      enabledTypes,
+      setTypeEnabled,
       toast,
       showToast,
       upgradeOpen,
       setUpgradeOpen,
     }),
-    [session, isGuest, profile, categories, items, loading, migrating, error, refresh, isPro, atLimit, saveItem, patchItem, removeItem, saveProfile, addCategory, editCategory, removeCategory, toast, showToast, upgradeOpen],
+    [session, isGuest, profile, categories, items, loading, migrating, error, refresh, isPro, atLimit, saveItem, patchItem, removeItem, saveProfile, addCategory, editCategory, removeCategory, enabledTypes, setTypeEnabled, toast, showToast, upgradeOpen],
   );
 
   return <KipContext.Provider value={value}>{children}</KipContext.Provider>;

@@ -30,7 +30,7 @@ async function readSharedPayload(params) {
 export default function Share() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const { profile, isPro, saveItem, showToast } = useKip();
+  const { profile, isPro, saveItem, showToast, enabledTypes } = useKip();
   const [payload, setPayload] = useState(null);
   const [quickSaving, setQuickSaving] = useState(false);
   const handled = useRef(false);
@@ -49,7 +49,7 @@ export default function Share() {
         try {
           const draft = shared.file
             ? { type: 'image', file: shared.file, title: shared.title, note: shared.text || null }
-            : draftFromShare(shared);
+            : draftFromShare(shared, enabledTypes);
           if (draft.url) Object.assign(draft, await fetchMetadata(draft.url), shared.title ? { title: shared.title } : {});
           await saveItem(draft, null);
           showToast('เซฟแล้ว ✓');
@@ -60,7 +60,7 @@ export default function Share() {
       }
       setPayload(shared);
     })();
-  }, [profile, isPro, params, navigate, saveItem, showToast]);
+  }, [profile, isPro, params, navigate, saveItem, showToast, enabledTypes]);
 
   if (!payload || quickSaving) {
     return (

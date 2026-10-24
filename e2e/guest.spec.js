@@ -3,10 +3,11 @@ import { test, expect } from '@playwright/test';
 const shot = (page, name) => page.screenshot({ path: `e2e/screenshots/${test.info().project.name}-${name}.png`, fullPage: true });
 
 // Skip onboarding by pre-seeding the guest profile.
-async function startAsOnboardedGuest(page, { categories = [{ id: 'c1', name: 'ความรู้ / บทความ', emoji: '📚', position: 0, is_default: false }], items = [] } = {}) {
+async function startAsOnboardedGuest(page, { categories = [{ id: 'c1', name: 'ความรู้ของฉัน', emoji: '📚', position: 0, is_default: false }], items = [], enabledTypes = [] } = {}) {
   await page.addInitScript(
-    ({ categories, items }) => {
+    ({ categories, items, enabledTypes }) => {
       if (localStorage.getItem('kip.guest.v1')) return;
+      localStorage.setItem('kip.types', JSON.stringify(enabledTypes));
       localStorage.setItem(
         'kip.guest.v1',
         JSON.stringify({
@@ -16,7 +17,7 @@ async function startAsOnboardedGuest(page, { categories = [{ id: 'c1', name: '�
         }),
       );
     },
-    { categories, items },
+    { categories, items, enabledTypes },
   );
 }
 
@@ -78,7 +79,7 @@ test('no categories: no Inbox, category filter hidden, + creates one from the sa
 
 test('type filter is multi-select and count bar shows only above 40 items', async ({ page }) => {
   const types = ['text', 'youtube', 'instagram'];
-  await startAsOnboardedGuest(page, { categories: [], items: Array.from({ length: 41 }, (_, i) => fakeItem(i, types[i % 3])) });
+  await startAsOnboardedGuest(page, { categories: [], items: Array.from({ length: 41 }, (_, i) => fakeItem(i, types[i % 3])), enabledTypes: ['instagram'] });
   await page.goto('/');
   await expect(page.getByTestId('item-count-bar')).toContainText('41/50');
 
@@ -90,6 +91,22 @@ test('type filter is multi-select and count bar shows only above 40 items', asyn
   await shot(page, '08-type-filter');
   await filter.getByRole('button', { name: 'ทั้งหมด' }).click();
   await expect(page.getByRole('heading', { name: /^รายการ/ })).toHaveCount(41);
+});
+
+test('IG / TikTok / Document stay out of the filter until enabled in settings', async ({ page }) => {
+  await startAsOnboardedGuest(page);
+  await page.goto('/');
+  const filter = page.getByTestId('type-filter');
+  for (const name of ['Facebook', 'โน้ต', 'รูปภาพ', 'YouTube']) await expect(filter.getByRole('button', { name })).toBeVisible();
+  for (const name of ['Instagram', 'TikTok', 'Document']) await expect(filter.getByRole('button', { name })).toHaveCount(0);
+
+  await page.goto('/settings');
+  await page.getByRole('switch', { name: 'TikTok' }).click();
+  await expect(page.getByRole('switch', { name: 'TikTok' })).toHaveAttribute('aria-checked', 'true');
+  await shot(page, '10-settings-content-types');
+  await page.getByRole('link', { name: '← กลับ' }).click();
+  await expect(filter.getByRole('button', { name: 'TikTok' })).toBeVisible();
+  await expect(filter.getByRole('button', { name: 'Instagram' })).toHaveCount(0);
 });
 
 test('settings can switch to dark mode and it persists', async ({ page }) => {

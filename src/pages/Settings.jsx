@@ -2,12 +2,15 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useKip } from '../context/KipContext.jsx';
 import { supabase } from '../lib/supabase.js';
-import { Toggle } from '../components/ui.jsx';
+import { Toggle, TypeBadge } from '../components/ui.jsx';
 import CategoryManager from '../components/CategoryManager.jsx';
 import FeedbackModal from '../components/FeedbackModal.jsx';
 import SupportLinks from '../components/SupportLinks.jsx';
 import { FREE_ITEM_LIMIT } from '../lib/pricing.js';
 import { getTheme, setTheme } from '../lib/theme.js';
+import { ITEM_TYPES, OPTIONAL_TYPES } from '../lib/content.js';
+
+const TYPE_LABEL = Object.fromEntries(ITEM_TYPES);
 
 function Section({ title, children }) {
   return (
@@ -19,7 +22,7 @@ function Section({ title, children }) {
 }
 
 export default function Settings() {
-  const { user, isGuest, isAdmin, migrating, profile, isPro, items, saveProfile, setUpgradeOpen, showToast } = useKip();
+  const { user, isGuest, isAdmin, migrating, profile, isPro, items, saveProfile, setUpgradeOpen, showToast, enabledTypes, setTypeEnabled } = useKip();
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [theme, setThemeState] = useState(getTheme);
   const navigate = useNavigate();
@@ -77,6 +80,20 @@ export default function Settings() {
           </div>
           <Toggle checked={Boolean(isPro && profile?.quick_mode)} onChange={toggleQuickMode} />
         </div>
+      </Section>
+
+      <Section title="ประเภทคอนเทนต์เสริม">
+        <p className="mb-3 text-xs text-slate-500">
+          Facebook, โน้ต, รูปภาพ, YouTube และ Web Link เปิดใช้งานเสมอ — เปิดประเภทด้านล่างเพื่อแสดงในตัวกรอง (ถ้าปิดไว้ ลิงก์ประเภทนั้นจะเซฟเป็น Web Link)
+        </p>
+        <ul className="space-y-3" data-testid="optional-types">
+          {OPTIONAL_TYPES.map((t) => (
+            <li key={t} className="flex items-center justify-between">
+              <TypeBadge type={t} />
+              <Toggle checked={enabledTypes.includes(t)} onChange={(on) => setTypeEnabled(t, on)} label={TYPE_LABEL[t]} />
+            </li>
+          ))}
+        </ul>
       </Section>
 
       <Section title="ธีม">
