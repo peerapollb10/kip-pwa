@@ -100,10 +100,21 @@ export async function updateItem(id, patch) {
   return data;
 }
 
-export async function deleteItem(item) {
-  const { error } = await supabase.from('items').delete().eq('id', item.id);
+export async function updateItems(ids, patch) {
+  const { error } = await supabase.from('items').update(patch).in('id', ids);
   raise(error);
-  if (item.image_path) await supabase.storage.from(IMAGE_BUCKET).remove([item.image_path]);
+}
+
+// Trash = soft delete; restore clears deleted_at (DB re-checks the Free limit on restore).
+export const trashItems = (ids) => updateItems(ids, { deleted_at: new Date().toISOString() });
+export const restoreItems = (ids) => updateItems(ids, { deleted_at: null });
+
+// Permanent delete (row + uploaded image).
+export async function deleteItems(items) {
+  const { error } = await supabase.from('items').delete().in('id', items.map((i) => i.id));
+  raise(error);
+  const paths = items.filter((i) => i.image_path).map((i) => i.image_path);
+  if (paths.length) await supabase.storage.from(IMAGE_BUCKET).remove(paths);
 }
 
 // ── Categories ──
@@ -142,8 +153,8 @@ export async function migrateGuestData({ userId, guest, serverCategories }) {
     idMap[gc.id] = byName[gc.name].id;
   }
 
-  // Oldest first so created_at order stays natural.
-  const queue = [...guest.items].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  // Oldest first so created_at order stays natural. Trashed guest items aren't migrated.
+  const queue = guest.items.filter((i) => !i.deleted_at).sort((a, b) => a.created_at.localeCompare(b.created_at));
   let migrated = 0;
   while (queue.length) {
     const it = queue[0];

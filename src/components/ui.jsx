@@ -69,7 +69,8 @@ export function Toggle({ checked, onChange, disabled, label }) {
   );
 }
 
-export function TypeBadge({ type }) {
+// `overlay`: pill with a white ring + soft shadow so it reads on any thumbnail, light or dark.
+export function TypeBadge({ type, overlay = false }) {
   const map = {
     youtube: ['▶', 'YouTube', 'bg-red-500'],
     facebook: ['f', 'Facebook', 'bg-blue-600'],
@@ -81,9 +82,12 @@ export function TypeBadge({ type }) {
     document: ['📄', 'Document', 'bg-sky-600'],
   };
   const [icon, label, color] = map[type] || map.link;
+  const shape = overlay
+    ? 'h-[22px] rounded-full px-2 shadow-md shadow-black/25 ring-[1.5px] ring-white dark:ring-white/85'
+    : 'rounded-md px-1.5 py-0.5';
   return (
-    <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-white ${color}`}>
-      <span aria-hidden>{icon}</span>
+    <span className={`inline-flex items-center gap-1 whitespace-nowrap text-[10px] font-semibold leading-none text-white ${color} ${shape}`}>
+      <span aria-hidden className="inline-flex min-w-3 justify-center">{icon}</span>
       {label}
     </span>
   );

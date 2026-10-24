@@ -4,6 +4,7 @@ import { useKip } from '../context/KipContext.jsx';
 import { GridCard } from '../components/ItemCard.jsx';
 import ItemDetail from '../components/ItemDetail.jsx';
 import SaveSheet from '../components/SaveSheet.jsx';
+import SelectionBar from '../components/BulkActions.jsx';
 import { EmptyState } from '../components/ui.jsx';
 import { FREE_ITEM_LIMIT, showItemCount } from '../lib/pricing.js';
 import { visibleItemTypes } from '../lib/content.js';
@@ -38,6 +39,28 @@ export default function Dashboard() {
 
   const toggleType = (t) => setTypes((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
 
+  // ── Multi-Select: null = off; long press a card to start. Deselecting the last item exits. ──
+  const [selection, setSelection] = useState(null);
+  const selecting = selection !== null;
+  const selectedItems = useMemo(() => (selection ? items.filter((i) => selection.has(i.id)) : []), [items, selection]);
+  const allVisibleSelected = selecting && visible.length > 0 && visible.every((i) => selection.has(i.id));
+  const exitSelection = () => setSelection(null);
+  const selectItem = (item) => setSelection((prev) => new Set(prev).add(item.id));
+  const toggleSelect = (item) =>
+    setSelection((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(item.id)) next.add(item.id);
+      return next.size ? next : null;
+    });
+  const toggleSelectAll = () => setSelection(allVisibleSelected ? null : new Set(visible.map((i) => i.id)));
+
+  useEffect(() => {
+    if (!selecting) return;
+    const onKey = (e) => e.key === 'Escape' && !document.querySelector('[role="dialog"]') && setSelection(null);
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [selecting]);
+
   // Desktop: paste anywhere (outside inputs) → open save sheet
   useEffect(() => {
     function onPaste(e) {
@@ -66,7 +89,7 @@ export default function Dashboard() {
 
   return (
     <div
-      className="min-h-screen pb-28"
+      className={`min-h-screen ${selecting ? 'pb-40' : 'pb-28'}`}
       onDragOver={(e) => {
         e.preventDefault();
         setDragging(true);
@@ -177,13 +200,27 @@ export default function Dashboard() {
         ) : (
           <div className="columns-2 gap-3 sm:columns-3 lg:columns-4">
             {visible.map((item) => (
-              <GridCard key={item.id} item={item} category={catMap[item.category_id]} onOpen={() => setOpenId(item.id)} onToggleFavorite={() => patchItem(item.id, { is_favorite: !item.is_favorite })} />
+              <GridCard
+                key={item.id}
+                item={item}
+                category={catMap[item.category_id]}
+                onOpen={() => setOpenId(item.id)}
+                onToggleFavorite={() => patchItem(item.id, { is_favorite: !item.is_favorite })}
+                selecting={selecting}
+                selected={selecting && selection.has(item.id)}
+                onSelect={selectItem}
+                onToggleSelect={toggleSelect}
+              />
             ))}
           </div>
         )}
+        {!selecting && visible.length > 0 && <p className="pb-2 pt-1 text-center text-xs text-slate-400">กดค้างที่การ์ดเพื่อเลือกหลายรายการ</p>}
       </main>
 
-      {/* FAB */}
+      {selecting ? (
+        <SelectionBar selectedItems={selectedItems} allVisibleSelected={allVisibleSelected} onSelectAll={toggleSelectAll} onExit={exitSelection} />
+      ) : (
+      /* FAB */
       <button
         onClick={() => setComposer({})}
         className="fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-brand-600 text-3xl text-white shadow-lg shadow-brand-600/30 transition active:scale-95"
@@ -191,6 +228,7 @@ export default function Dashboard() {
       >
         +
       </button>
+      )}
 
       {dragging && (
         <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-brand-600/10 backdrop-blur-sm">

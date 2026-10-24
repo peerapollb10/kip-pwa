@@ -8,6 +8,7 @@ import Settings from './pages/Settings.jsx';
 import Pricing from './pages/Pricing.jsx';
 import Onboarding from './pages/Onboarding.jsx';
 import Admin from './pages/Admin.jsx';
+import Trash from './pages/Trash.jsx';
 import Toast from './components/Toast.jsx';
 import UpgradeSheet from './components/UpgradeSheet.jsx';
 import { Spinner } from './components/ui.jsx';
@@ -39,6 +40,7 @@ export default function App() {
         <Route path="/welcome" element={<Onboarding />} />
         <Route path="/share" element={<Share />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/trash" element={<Trash />} />
         <Route path="/admin" element={<RequireAdmin><Admin /></RequireAdmin>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

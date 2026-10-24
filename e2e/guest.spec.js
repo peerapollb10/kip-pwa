@@ -141,3 +141,45 @@ test('admin route is closed to guests', async ({ page }) => {
   await page.goto('/admin');
   await expect(page).toHaveURL(/\/login$/);
 });
+
+test('long press → multi-select → trash, then restore / delete permanently from Settings', async ({ page }) => {
+  const day = 24 * 60 * 60 * 1000;
+  const trashed = (i, daysAgo) => ({ ...fakeItem(i, 'link'), title: `ในถัง ${i}`, deleted_at: new Date(Date.now() - daysAgo * day).toISOString() });
+  await startAsOnboardedGuest(page, { items: [fakeItem(1, 'link'), fakeItem(2, 'text'), fakeItem(3, 'youtube'), trashed(8, 2), trashed(9, 31)] });
+  await page.goto('/');
+  const cards = page.getByTestId('item-card');
+  await expect(cards).toHaveCount(3);
+
+  // Long press the first card
+  const box = await cards.first().boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(700);
+  await page.mouse.up();
+  await expect(page.getByTestId('selection-bar')).toBeVisible();
+  await expect(page.getByText('เลือกแล้ว 1 รายการ')).toBeVisible();
+  await cards.nth(1).click(); // tap toggles while selecting
+  await expect(page.getByText('เลือกแล้ว 2 รายการ')).toBeVisible();
+  await shot(page, '10-multi-select');
+
+  await page.getByTestId('selection-bar').getByRole('button', { name: 'ลบ' }).click();
+  await expect(cards).toHaveCount(1);
+  await expect(page.getByTestId('selection-bar')).toHaveCount(0);
+
+  await page.goto('/settings');
+  await page.getByTestId('trash-link').click();
+  await expect(page).toHaveURL(/\/trash$/);
+  const rows = page.getByTestId('trash-row');
+  await expect(rows).toHaveCount(3); // the 31-day-old item was auto-deleted
+  await expect(page.getByText('ในถัง 9')).toHaveCount(0);
+  await shot(page, '11-trash');
+
+  await rows.filter({ hasText: 'ในถัง 8' }).getByRole('button', { name: 'ลบถาวร' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'ลบถาวร' }).click();
+  await expect(rows).toHaveCount(2);
+  await rows.first().getByRole('button', { name: /คืนค่า/ }).click();
+  await expect(rows).toHaveCount(1);
+
+  await page.goto('/');
+  await expect(cards).toHaveCount(2);
+});

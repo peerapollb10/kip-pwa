@@ -5,6 +5,7 @@ import * as guestStore from '../lib/guestStore.js';
 import { compressToWebp } from '../lib/image.js';
 import { isPro as checkPro, FREE_ITEM_LIMIT } from '../lib/pricing.js';
 import { getEnabledTypes, setEnabledTypes } from '../lib/typePrefs.js';
+import { isExpired, isTrashed } from '../lib/trash.js';
 
 const KipContext = createContext(null);
 
@@ -12,7 +13,7 @@ export function KipProvider({ children }) {
   const [session, setSession] = useState(undefined); // undefined = still resolving
   const [profile, setProfile] = useState(null);
   const [categories, setCategories] = useState([]);
-  const [items, setItems] = useState([]);
+  const [allItems, setItems] = useState([]); // active + trashed
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [toast, setToast] = useState(null);
@@ -45,7 +46,12 @@ export function KipProvider({ children }) {
   }, []);
 
   const loadGuestState = useCallback(() => {
-    const g = guestStore.loadGuest();
+    let g = guestStore.loadGuest();
+    // Auto-delete trash older than 30 days.
+    if (g.items.some((i) => isExpired(i))) {
+      g = { ...g, items: g.items.filter((i) => !isExpired(i)) };
+      guestStore.saveGuest(g);
+    }
     setProfile(g.profile);
     setCategories(g.categories);
     setItems(g.items);
@@ -57,9 +63,12 @@ export function KipProvider({ children }) {
     setError(null);
     try {
       const [p, c, i] = await Promise.all([api.getProfile(userId), api.listCategories(), api.listItems()]);
+      // Auto-delete trash older than 30 days (row + image); a failure just retries next load.
+      const expired = i.filter((x) => isExpired(x));
+      if (expired.length) api.deleteItems(expired).catch(() => {});
       setProfile(p);
       setCategories(c);
-      setItems(i);
+      setItems(i.filter((x) => !isExpired(x)));
       return c;
     } catch (e) {
       setError(e.message || 'โหลดข้อมูลไม่สำเร็จ');
@@ -103,6 +112,12 @@ export function KipProvider({ children }) {
       }
     })();
   }, [authResolved, userId, refresh, loadGuestState, showToast]);
+
+  const items = useMemo(() => allItems.filter((i) => !isTrashed(i)), [allItems]);
+  const trash = useMemo(
+    () => allItems.filter(isTrashed).sort((a, b) => b.deleted_at.localeCompare(a.deleted_at)),
+    [allItems],
+  );
 
   const isPro = !isGuest && checkPro(profile);
   const atLimit = !isPro && items.length >= FREE_ITEM_LIMIT;
@@ -149,16 +164,61 @@ export function KipProvider({ children }) {
     [isGuest, commitGuest, refresh, showToast],
   );
 
-  const removeItem = useCallback(
-    async (item) => {
+  // Bulk mutations shared by Multi-Select and the Trash page. Server path: optimistic, rollback via refresh.
+  const mutateItems = useCallback(
+    async (ids, patch, request) => {
+      const set = new Set(ids);
+      const apply = (list) => list.map((i) => (set.has(i.id) ? { ...i, ...patch } : i));
       if (isGuest) {
-        commitGuest((g) => ({ ...g, items: g.items.filter((i) => i.id !== item.id) }));
+        commitGuest((g) => ({ ...g, items: apply(g.items) }));
         return;
       }
-      await api.deleteItem(item);
-      setItems((prev) => prev.filter((i) => i.id !== item.id));
+      setItems(apply);
+      try {
+        await request(ids);
+      } catch (e) {
+        refresh();
+        throw e;
+      }
     },
-    [isGuest, commitGuest],
+    [isGuest, commitGuest, refresh],
+  );
+
+  const patchItems = useCallback((ids, patch) => mutateItems(ids, patch, (x) => api.updateItems(x, patch)), [mutateItems]);
+
+  const trashItems = useCallback(
+    (ids) => mutateItems(ids, { deleted_at: new Date().toISOString() }, api.trashItems),
+    [mutateItems],
+  );
+
+  const restoreItems = useCallback(
+    async (ids) => {
+      if (!isPro && items.length + ids.length > FREE_ITEM_LIMIT) {
+        setUpgradeOpen(true);
+        throw new api.LimitError();
+      }
+      try {
+        await mutateItems(ids, { deleted_at: null }, api.restoreItems);
+      } catch (e) {
+        if (e.code === 'FREE_LIMIT_REACHED') setUpgradeOpen(true);
+        throw e;
+      }
+    },
+    [isPro, items.length, mutateItems],
+  );
+
+  // Permanent delete from the trash.
+  const purgeItems = useCallback(
+    async (ids) => {
+      const set = new Set(ids);
+      if (isGuest) {
+        commitGuest((g) => ({ ...g, items: g.items.filter((i) => !set.has(i.id)) }));
+        return;
+      }
+      await api.deleteItems(allItems.filter((i) => set.has(i.id)));
+      setItems((prev) => prev.filter((i) => !set.has(i.id)));
+    },
+    [isGuest, commitGuest, allItems],
   );
 
   const saveProfile = useCallback(
@@ -229,6 +289,7 @@ export function KipProvider({ children }) {
       profile,
       categories,
       items,
+      trash,
       loading,
       migrating,
       error,
@@ -237,7 +298,10 @@ export function KipProvider({ children }) {
       atLimit,
       saveItem,
       patchItem,
-      removeItem,
+      patchItems,
+      trashItems,
+      restoreItems,
+      purgeItems,
       saveProfile,
       addCategory,
       editCategory,
@@ -249,7 +313,7 @@ export function KipProvider({ children }) {
       upgradeOpen,
       setUpgradeOpen,
     }),
-    [session, isGuest, profile, categories, items, loading, migrating, error, refresh, isPro, atLimit, saveItem, patchItem, removeItem, saveProfile, addCategory, editCategory, removeCategory, enabledTypes, setTypeEnabled, toast, showToast, upgradeOpen],
+    [session, isGuest, profile, categories, items, trash, loading, migrating, error, refresh, isPro, atLimit, saveItem, patchItem, patchItems, trashItems, restoreItems, purgeItems, saveProfile, addCategory, editCategory, removeCategory, enabledTypes, setTypeEnabled, toast, showToast, upgradeOpen],
   );
 
   return <KipContext.Provider value={value}>{children}</KipContext.Provider>;

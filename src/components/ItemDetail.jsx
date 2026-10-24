@@ -14,7 +14,7 @@ const OPEN_IN = {
 
 // Hybrid view: preview inside Kip + button to open the original app/site.
 export default function ItemDetail({ item, onClose }) {
-  const { patchItem, removeItem, showToast } = useKip();
+  const { patchItem, trashItems, showToast } = useKip();
   const [note, setNote] = useState('');
   const [title, setTitle] = useState('');
   const [editingTitle, setEditingTitle] = useState(false);
@@ -33,8 +33,8 @@ export default function ItemDetail({ item, onClose }) {
 
   async function handleDelete() {
     try {
-      await removeItem(item);
-      showToast('ลบแล้ว');
+      await trashItems([item.id]);
+      showToast('ย้ายไปถังขยะแล้ว · กู้คืนได้ใน 30 วัน');
       onClose();
     } catch {
       showToast('ลบไม่สำเร็จ', 'error');
@@ -70,9 +70,9 @@ export default function ItemDetail({ item, onClose }) {
         <div className="flex items-center gap-2">
           {confirmDelete ? (
             <>
-              <span className="text-sm text-red-600">ยืนยันลบรายการนี้?</span>
+              <span className="text-sm text-red-600">ย้ายไปถังขยะ?</span>
               <button className="btn-ghost ml-auto" onClick={() => setConfirmDelete(false)}>ยกเลิก</button>
-              <button className="btn bg-red-600 text-white" onClick={handleDelete}>ลบ</button>
+              <button className="btn bg-red-600 text-white" onClick={handleDelete}>ย้ายไปถังขยะ</button>
             </>
           ) : (
             <>

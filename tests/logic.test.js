@@ -6,6 +6,7 @@ import { draftFromShare, getYouTubeId, detectType, ITEM_TYPES, visibleItemTypes 
 import { getEnabledTypes, setEnabledTypes } from '../src/lib/typePrefs.js';
 import { loadGuest, saveGuest, clearGuest, hasGuestData, newGuestItem, newGuestCategory } from '../src/lib/guestStore.js';
 import { getTheme } from '../src/lib/theme.js';
+import { isExpired, daysLeft, TRASH_RETENTION_DAYS } from '../src/lib/trash.js';
 import { safePath, emailForLine } from '../api/_lib/line.js';
 
 test('tier boundaries', () => {
@@ -151,4 +152,17 @@ test('content detection', () => {
   const n = draftFromShare({ text: 'ซื้อนมก่อนกลับบ้าน' });
   assert.equal(n.type, 'text');
   assert.equal(n.note, 'ซื้อนมก่อนกลับบ้าน');
+});
+
+test('trash keeps items for 30 days', () => {
+  const day = 24 * 60 * 60 * 1000;
+  const now = Date.UTC(2026, 9, 24);
+  const at = (d) => ({ deleted_at: new Date(now - d * day).toISOString() });
+  assert.equal(TRASH_RETENTION_DAYS, 30);
+  assert.equal(isExpired({ deleted_at: null }, now), false);
+  assert.equal(isExpired(at(29.9), now), false);
+  assert.equal(isExpired(at(30), now), true);
+  assert.equal(daysLeft(at(0), now), 30);
+  assert.equal(daysLeft(at(29.5), now), 1);
+  assert.equal(daysLeft(at(45), now), 0);
 });

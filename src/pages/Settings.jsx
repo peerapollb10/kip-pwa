@@ -9,6 +9,7 @@ import SupportLinks from '../components/SupportLinks.jsx';
 import { FREE_ITEM_LIMIT } from '../lib/pricing.js';
 import { getTheme, setTheme } from '../lib/theme.js';
 import { ITEM_TYPES, OPTIONAL_TYPES } from '../lib/content.js';
+import { TRASH_RETENTION_DAYS } from '../lib/trash.js';
 
 const TYPE_LABEL = Object.fromEntries(ITEM_TYPES);
 
@@ -22,7 +23,7 @@ function Section({ title, children }) {
 }
 
 export default function Settings() {
-  const { user, isGuest, isAdmin, migrating, profile, isPro, items, saveProfile, setUpgradeOpen, showToast, enabledTypes, setTypeEnabled } = useKip();
+  const { user, isGuest, isAdmin, migrating, profile, isPro, items, trash, saveProfile, setUpgradeOpen, showToast, enabledTypes, setTypeEnabled } = useKip();
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [theme, setThemeState] = useState(getTheme);
   const navigate = useNavigate();
@@ -111,6 +112,18 @@ export default function Settings() {
 
       <Section title="หมวดหมู่">
         <CategoryManager />
+      </Section>
+
+      <Section title="ถังขยะ">
+        <Link to="/trash" className="flex items-center gap-3 rounded-xl py-1 transition hover:opacity-80" data-testid="trash-link">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-lg dark:bg-white/10">🗑</span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-medium">รายการที่ลบ</span>
+            <span className="block text-xs text-slate-500">เก็บไว้ {TRASH_RETENTION_DAYS} วัน คืนค่าหรือลบถาวรได้</span>
+          </span>
+          {trash.length > 0 && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold dark:bg-white/10">{trash.length}</span>}
+          <span className="text-slate-400" aria-hidden>›</span>
+        </Link>
       </Section>
 
       <Section title="ช่วยเหลือ">
